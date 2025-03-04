@@ -1,0 +1,23 @@
+# 基础配置
+base:
+  model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  dataset_path: "data/Lamp5/user402.json"
+  device_id: "3"
+  
+# 训练配置
+training:
+  output_dir: "results/models"  # 自动添加时间戳
+  batch_size: 16
+  gradient_accumulation_steps: 4
+  learning_rate: 0.0002
+  num_epochs: 1
+  max_steps: 300
+  save_total_limit: 1  # 最多只保留最后一个 checkpoint
+  fp16: true
+  
+# LoRA配置
+lora:
+  r: 24
+  alpha: 48
+  dropout: 0.1
+  target_modules: ["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj"]
