@@ -35,7 +35,7 @@ class WeightNetworkTrainer:
         for param in self.tiny_model.parameters():
             param.requires_grad = False
 
-    def train_weight_network(self):
+    def train_weight_network(self, num_epochs=5):
         """训练权重网络"""
         self.freeze_models()  # 冻结大模型和小模型
 
@@ -43,23 +43,27 @@ class WeightNetworkTrainer:
         optimizer = AdamW(self.weight_network.parameters(), lr=1e-5)
 
         self.weight_network.train()
-        for batch in self.data["train"]:
-            # 先对数据进行tokenization处理
-            texts = batch["text"]  # 假设每个batch是一个包含文本的字典
-            encodings = self.tokenizer(texts, padding=True, truncation=True, max_length=512, return_tensors="pt")
-            
-            input_ids = encodings["input_ids"].to(self.device)
-            attention_mask = encodings["attention_mask"].to(self.device)  # 如果有的话
+        for epoch in range(num_epochs):  # 迭代多个 epoch
+            print(f"Epoch {epoch + 1}/{num_epochs} training started.")
+            for batch in self.data["train"]:
+                # 先对数据进行tokenization处理
+                texts = batch["text"]  # 假设每个batch是一个包含文本的字典
+                encodings = self.tokenizer(texts, padding=True, truncation=True, max_length=512, return_tensors="pt")
+                
+                input_ids = encodings["input_ids"].to(self.device)
+                attention_mask = encodings["attention_mask"].to(self.device)  # 如果有的话
 
-            # 使用协同推理获取加权后的logits
-            weighted_logits = self.collaborative_inference(input_ids)
+                # 使用协同推理获取加权后的logits
+                weighted_logits = self.collaborative_inference(input_ids)
 
-            # 计算损失
-            loss = torch.nn.CrossEntropyLoss()(weighted_logits.view(-1, weighted_logits.size(-1)), input_ids.view(-1))
+                # 计算损失
+                loss = torch.nn.CrossEntropyLoss()(weighted_logits.view(-1, weighted_logits.size(-1)), input_ids.view(-1))
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            print(f"Epoch {epoch + 1}/{num_epochs} training finished.")
 
         print("Weight network trained")
         self.save_weight_network()
