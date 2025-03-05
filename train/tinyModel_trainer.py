@@ -1,10 +1,10 @@
 from trl import SFTTrainer
-from transformers import TrainingArguments
+from transformers import TrainingArguments, DataCollatorForSeq2Seq
 from utils.config_loader import load_config
 from models.model import TinyModelLoader
 from models.tokenizer import Tokenizer
 from dataloader.dataset import PaperDataset
-import yaml
+
 
 class FineTuner:
     def __init__(self): 
@@ -12,17 +12,19 @@ class FineTuner:
         self.tokenizer = Tokenizer.load_tokenizer()
         self.model = TinyModelLoader.load_model()
         self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
+        self.tokenized_data = self.data.map(PaperDataset.preprocess_function, batched = True)
+        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model)
         
     def _get_training_args(self):
         return TrainingArguments(
             output_dir=self._get_output_dir(),
-            per_device_train_batch_size=self.config["training"]["batch_size"],
-            gradient_accumulation_steps=self.config["training"]["gradient_accumulation_steps"],
-            learning_rate=self.config["training"]["learning_rate"],
-            num_train_epochs=self.config["training"]["num_epochs"],
-            max_steps=self.config["training"]["max_steps"],
-            fp16=self.config["training"]["fp16"],
-            save_total_limit=self.config["training"]["save_total_limit"],
+            per_device_train_batch_size=self.config["tinyModel_training"]["batch_size"],
+            gradient_accumulation_steps=self.config["tinyModel_training"]["gradient_accumulation_steps"],
+            learning_rate=self.config["tinyModel_training"]["learning_rate"],
+            num_train_epochs=self.config["tinyModel_training"]["num_epochs"],
+            max_steps=self.config["tinyModel_training"]["max_steps"],
+            fp16=self.config["tinyModel_training"]["fp16"],
+            save_total_limit=self.config["tinyModel_training"]["save_total_limit"],
             save_strategy="epoch",
             logging_steps=10,
             optim="paged_adamw_32bit",
@@ -32,16 +34,17 @@ class FineTuner:
     def _get_output_dir(self):
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{self.config['training']['output_dir']}/{timestamp}_{self.config['base']['model_id'].split('/')[-1]}"
+        return f"{self.config['tinyModel_training']['output_dir']}/{timestamp}_{self.config['base']['tiny_model_id'].split('/')[-1]}"
 
     def run(self):
         trainer = SFTTrainer(
             model=self.model,
-            train_dataset=self.data["train"],
-            eval_dataset=self.data["test"],
+            train_dataset=self.tokenized_data["train"],
+            eval_dataset=self.tokenized_data["test"],
             peft_config=self._get_lora_config(),
             args=self._get_training_args(),
             tokenizer=self.tokenizer,
+            data_collator=self.data_collator,
             max_seq_length=512
         )
         trainer.train()

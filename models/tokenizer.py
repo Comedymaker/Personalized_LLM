@@ -5,6 +5,6 @@ class Tokenizer:
     @staticmethod
     def load_tokenizer():
         config = load_config()
-        tokenizer = AutoTokenizer.from_pretrained(config["base"]["model_id"])
+        tokenizer = AutoTokenizer.from_pretrained(config["base"]["tiny_model_id"])
         tokenizer.pad_token = tokenizer.eos_token
         return tokenizer

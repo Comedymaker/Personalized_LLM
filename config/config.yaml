@@ -1,18 +1,21 @@
 # 基础配置
 base:
-  model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  tiny_model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  large_model_id: "meta-llama/Llama-2-7b-chat-hf"
   dataset_path: "data/Lamp5/user402.json"
-  device_id: "3"
+  model_path: "results/models/20250304_060238_TinyLlama-1.1B-Chat-v1.0"
+  device_id: "0"
   
 # 训练配置
-training:
+tinyModel_training:
   output_dir: "results/models"  # 自动添加时间戳
   batch_size: 16
   gradient_accumulation_steps: 4
   learning_rate: 0.0002
   num_epochs: 1
-  max_steps: 300
+  max_steps: 150
   save_total_limit: 1  # 最多只保留最后一个 checkpoint
+
   fp16: true
   
 # LoRA配置

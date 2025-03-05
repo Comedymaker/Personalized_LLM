@@ -1,55 +1,91 @@
 import torch
+import sys
 import os
-from transformers import AutoTokenizer, pipeline
-from time import perf_counter
+from transformers import AutoTokenizer
+# 将项目根目录加入到 sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from utils.config_loader import load_config
+from models.model import TinyModelLoader
+from dataloader.dataset import PaperDataset
 
-#选择设备
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+class Evaluator:
+    def __init__(self):
+        # 加载配置文件
+        self.config = load_config()
 
-# 准备微调后模型的路径
-model_id_final = "results/models/20250304_035318_TinyLlama-1.1B-Chat-v1.0"  # 这里使用你本地保存的微调后模型路径
-tokenizer = AutoTokenizer.from_pretrained(model_id_final)
+        # 加载 tokenizer 和模型
+        self.tokenizer = AutoTokenizer.from_pretrained(self.config["base"]["tiny_model_id"])  # 直接使用训练时的 tokenizer
+        self.model = TinyModelLoader.load_finetuned_model()  # 加载微调后的模型
+        self.model.eval()  # 设置模型为评估模式
 
-# 准备推理管道
-pipe = pipeline(
-    "text-generation",
-    model=model_id_final,
-    tokenizer=tokenizer,
-    torch_dtype=torch.float16,
-    device_map=device
-)
+        # 加载数据
+        self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
 
-# 格式化提示语
-def formatted_prompt(question: str) -> str:
-    return (
-        "[INSTRUCTION] Generate a concise academic paper title based on the abstract.\n"
-        f"[ABSTRACT] {question}\n"
-        f"[TITLE] "
-    )
+    def prepare_input_for_testing(self, abstract_text):
+        """
+        根据训练时的格式处理输入文本
+        """
+        instruction = "[INSTRUCTION] Generate a concise academic paper title based on the abstract."
+        abstract = f"[ABSTRACT] {abstract_text}"
+        input_text = f"{instruction}\n{abstract}\n</s>"  # 和训练时一致，添加结束符
+        return input_text
 
+    def evaluate(self):
+        """
+        评估模型：生成标题并与真实标题进行对比
+        """
+        generated_titles = []
+        true_titles = []
 
-# 测试推理
-start_time = perf_counter()
+        # 在测试集上进行推理
+        for data_point in self.data["test"]:
+            abstract_text = data_point["abstract"]
+            true_title = data_point["title"]
 
-# 你的测试问题或摘要
-prompt = formatted_prompt("Clock distribution networks (CDNs) are costly in high-performance ASICs. This paper proposes a new approach: splitting clock domains at a very fine level, down to the level of a handful of gates. Each domain is synchronized with an inexpensive clock signal, generated locally. This is possible by adopting the paradigm of stochastic computation, where signal values are encoded as random bit streams. The design method is illustrated with the synthesis of circuits for applications in signal and image processing.")
+            # 准备输入
+            input_text = self.prepare_input_for_testing(abstract_text)
 
-# 使用生成管道进行推理
-sequences = pipe(
-    prompt,
-    do_sample=True,
-    temperature=0.7,  # 控制生成的随机性
-    top_p=0.9,  # 使用 top-p 策略
-    num_return_sequences=1,
-    eos_token_id=tokenizer.eos_token_id,
-    max_new_tokens=20  # 限制生成的最大长度
-)
+            # 编码输入
+            inputs = self.tokenizer(input_text, return_tensors='pt', padding=True, truncation=True, max_length=512)
+            input_ids = inputs['input_ids'].to(self.model.device)
 
-# 输出推理结果
-for seq in sequences:
-    print(f"Result: {seq['generated_text']}")
+            # 生成标题
+            with torch.no_grad():
+                output = self.model.generate(
+                    input_ids,
+                    max_length=512,  # 设置生成的最大长度
+                    num_beams=5,  # 使用束搜索
+                    no_repeat_ngram_size=2,  # 防止重复的n-gram
+                    eos_token_id=self.tokenizer.eos_token_id,  # 使用 eos_token_id
+                    early_stopping=True
+                )
 
-# 输出推理时间
-output_time = perf_counter() - start_time
-print(f"Time taken for inference: {round(output_time, 2)} seconds")
+            # 解码生成的标题
+            generated_title = self.tokenizer.decode(output[0], skip_special_tokens=True)
+
+            # 保存真实标题和生成的标题
+            generated_titles.append(generated_title)
+            print(generated_title)
+            true_titles.append(true_title)
+
+        # 计算评估指标（例如 BLEU, ROUGE, etc.）
+        self.calculate_metrics(generated_titles, true_titles)
+
+    def calculate_metrics(self, generated_titles, true_titles):
+        """
+        计算生成标题与真实标题的评估指标
+        """
+        from sklearn.metrics import accuracy_score
+        # 你可以使用 BLEU、ROUGE 等评估指标，下面使用准确度作为示例
+        accuracy = accuracy_score(true_titles, generated_titles)
+        print(f"Accuracy: {accuracy:.4f}")
+
+        # 如果需要更高级的评估，例如 BLEU 或 ROUGE，可以使用 `nltk` 或 `rouge_score` 库
+        # 例如：计算 BLEU 或 ROUGE 分数
+        from nltk.translate.bleu_score import corpus_bleu
+        bleu_score = corpus_bleu([[t] for t in true_titles], generated_titles)
+        print(f"BLEU Score: {bleu_score:.4f}")
+
+if __name__ == "__main__":
+    evaluator = Evaluator()
+    evaluator.evaluate()
