@@ -1,0 +1,38 @@
+100%|██████████| 100/100 [07:34<00:00,  4.54s/it]
+{'loss': 2.3033, 'grad_norm': 0.29339537024497986, 'learning_rate': 0.00019510565162951537, 'epoch': 0.07}
+{'loss': 2.1559, 'grad_norm': 0.22095531225204468, 'learning_rate': 0.00018090169943749476, 'epoch': 0.14}
+{'loss': 2.1555, 'grad_norm': 0.20844095945358276, 'learning_rate': 0.00015877852522924732, 'epoch': 0.21}
+{'loss': 2.1474, 'grad_norm': 0.2161531150341034, 'learning_rate': 0.00013090169943749476, 'epoch': 0.28}
+{'loss': 2.1288, 'grad_norm': 0.20757436752319336, 'learning_rate': 0.0001, 'epoch': 0.35}
+{'loss': 2.1378, 'grad_norm': 0.2047845721244812, 'learning_rate': 6.909830056250527e-05, 'epoch': 0.42}
+{'loss': 2.1341, 'grad_norm': 0.20104067027568817, 'learning_rate': 4.12214747707527e-05, 'epoch': 0.48}
+{'loss': 2.1384, 'grad_norm': 0.20790258049964905, 'learning_rate': 1.9098300562505266e-05, 'epoch': 0.55}
+{'loss': 2.1205, 'grad_norm': 0.22783000767230988, 'learning_rate': 4.8943483704846475e-06, 'epoch': 0.62}
+{'loss': 2.1328, 'grad_norm': 0.21434442698955536, 'learning_rate': 0.0, 'epoch': 0.69}
+{'train_runtime': 455.9841, 'train_samples_per_second': 14.036, 'train_steps_per_second': 0.219, 'train_loss': 2.155454978942871, 'epoch': 0.69}
+100%|██████████| 129/129 [00:29<00:00,  4.43it/s]
+Traceback (most recent call last):
+  File "/opt/miniconda/lib/python3.12/site-packages/peft/config.py", line 257, in _get_peft_type
+    config_file = hf_hub_download(
+                  ^^^^^^^^^^^^^^^^
+  File "/opt/miniconda/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 106, in _inner_fn
+    validate_repo_id(arg_value)
+  File "/opt/miniconda/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 154, in validate_repo_id
+    raise HFValidationError(
+huggingface_hub.errors.HFValidationError: Repo id must be in the form 'repo_name' or 'namespace/repo_name': 'results/models/20250307_070426_TinyLlama-1.1B-Chat-v1.0'. Use `repo_type` argument if needed.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/workspace/Personalized_LLM/run_trainer.py", line 5, in <module>
+    finetuner.run()
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 56, in run
+    self._save_model(trainer)
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 86, in _save_model
+    peft_model = PeftModel.from_pretrained(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda/lib/python3.12/site-packages/peft/peft_model.py", line 479, in from_pretrained
+    PeftConfig._get_peft_type(
+  File "/opt/miniconda/lib/python3.12/site-packages/peft/config.py", line 263, in _get_peft_type
+    raise ValueError(f"Can't find '{CONFIG_NAME}' at '{model_id}'")
+ValueError: Can't find 'adapter_config.json' at 'results/models/20250307_070426_TinyLlama-1.1B-Chat-v1.0'

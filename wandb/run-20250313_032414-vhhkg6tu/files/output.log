@@ -1,0 +1,26 @@
+ 36%|███▌      | 36/100 [02:49<04:50,  4.53s/it]Traceback (most recent call last):
+{'loss': 2.0966, 'grad_norm': 0.3345635235309601, 'learning_rate': 0.00019510565162951537, 'epoch': 5.0}
+{'loss': 1.7712, 'grad_norm': 0.39793696999549866, 'learning_rate': 0.00018090169943749476, 'epoch': 10.0}
+{'loss': 1.3752, 'grad_norm': 0.7933580875396729, 'learning_rate': 0.00015877852522924732, 'epoch': 15.0}
+  File "/workspace/Personalized_LLM/run_trainer.py", line 5, in <module>
+    finetuner.run()
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 55, in run
+    trainer.train()
+  File "/opt/miniconda/lib/python3.12/site-packages/transformers/trainer.py", line 2241, in train
+    return inner_training_loop(
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda/lib/python3.12/site-packages/transformers/trainer.py", line 2548, in _inner_training_loop
+    tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/miniconda/lib/python3.12/site-packages/transformers/trainer.py", line 3740, in training_step
+    self.accelerator.backward(loss, **kwargs)
+  File "/opt/miniconda/lib/python3.12/site-packages/accelerate/accelerator.py", line 2325, in backward
+    self.scaler.scale(loss).backward(**kwargs)
+  File "/opt/miniconda/lib/python3.12/site-packages/torch/_tensor.py", line 626, in backward
+    torch.autograd.backward(
+  File "/opt/miniconda/lib/python3.12/site-packages/torch/autograd/__init__.py", line 347, in backward
+    _engine_run_backward(
+  File "/opt/miniconda/lib/python3.12/site-packages/torch/autograd/graph.py", line 823, in _engine_run_backward
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

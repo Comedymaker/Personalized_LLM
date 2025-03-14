@@ -1,0 +1,17 @@
+100%|██████████| 100/100 [07:46<00:00,  4.67s/it]
+{'loss': 2.257, 'grad_norm': 0.3729284107685089, 'learning_rate': 0.00019510565162951537, 'epoch': 0.07}
+{'loss': 2.0422, 'grad_norm': 0.24615436792373657, 'learning_rate': 0.00018090169943749476, 'epoch': 0.14}
+{'loss': 2.0382, 'grad_norm': 0.19748984277248383, 'learning_rate': 0.00015877852522924732, 'epoch': 0.21}
+{'loss': 2.0322, 'grad_norm': 0.21068596839904785, 'learning_rate': 0.00013090169943749476, 'epoch': 0.28}
+{'loss': 2.015, 'grad_norm': 0.1986525058746338, 'learning_rate': 0.0001, 'epoch': 0.35}
+{'loss': 2.0249, 'grad_norm': 0.19359402358531952, 'learning_rate': 6.909830056250527e-05, 'epoch': 0.42}
+{'loss': 2.02, 'grad_norm': 0.19129440188407898, 'learning_rate': 4.12214747707527e-05, 'epoch': 0.48}
+{'loss': 2.0249, 'grad_norm': 0.19807814061641693, 'learning_rate': 1.9098300562505266e-05, 'epoch': 0.55}
+{'loss': 2.0095, 'grad_norm': 0.20828646421432495, 'learning_rate': 4.8943483704846475e-06, 'epoch': 0.62}
+{'loss': 2.0218, 'grad_norm': 0.20408660173416138, 'learning_rate': 0.0, 'epoch': 0.69}
+{'train_runtime': 468.7024, 'train_samples_per_second': 13.655, 'train_steps_per_second': 0.213, 'train_loss': 2.048555393218994, 'epoch': 0.69}
+100%|██████████| 129/129 [00:30<00:00,  4.29it/s]
+Model saved to: results/models/20250309_024959_TinyLlama-1.1B-Chat-v1.0
+/opt/miniconda/lib/python3.12/site-packages/peft/tuners/lora/bnb.py:355: UserWarning: Merge lora module to 4-bit linear may get different generations due to rounding errors.
+  warnings.warn(
+完整模型已保存到：results/models/20250309_024959_TinyLlama-1.1B-Chat-v1.0_merged

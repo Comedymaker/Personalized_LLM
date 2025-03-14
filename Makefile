@@ -2,7 +2,8 @@
 
 # 配置
 PYTHON := python
-TRAIN_SCRIPT := run_trainer.py
+TINY_SCRIPT := run_trainer.py
+COMB_SCRIPT := run_CombModel_trainer.py
 EVAL_SCRIPT := evaluation/eval.py
 TRAIN_LOG_FILE := results/output.txt
 EVAL_LOG_FILE := results/output1.txt
@@ -13,10 +14,16 @@ VENV := venv
 
 all: install train  # 默认执行完整流程
 
-train:  # 运行训练并记录日志
+train_tinyllama:  # 运行训练并记录日志
 	@echo "▶️ 开始训练! 日志保存到 ${TRAIN_LOG_FILE}"
-	@${PYTHON} ${TRAIN_SCRIPT} > ${TRAIN_LOG_FILE} 2>&1
+	@${PYTHON} ${TINY_SCRIPT} > ${TRAIN_LOG_FILE} 2>&1
 	@echo "✅ 训练完成! 查看日志: ${TRAIN_LOG_FILE}"
+
+train_combModel:
+	@echo "▶️ 开始训练! 日志保存到 ${TRAIN_LOG_FILE}"
+	@${PYTHON} ${COMB_SCRIPT} > ${TRAIN_LOG_FILE} 2>&1
+	@echo "✅ 训练完成! 查看日志: ${TRAIN_LOG_FILE}"
+
 
 install:  # 安装Python依赖
 	@echo "🔧 安装依赖..."

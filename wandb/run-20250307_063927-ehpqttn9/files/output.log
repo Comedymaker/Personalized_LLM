@@ -1,0 +1,22 @@
+100%|██████████| 100/100 [07:33<00:00,  4.54s/it]
+{'loss': 2.3033, 'grad_norm': 0.2930974066257477, 'learning_rate': 0.00019510565162951537, 'epoch': 0.07}
+{'loss': 2.156, 'grad_norm': 0.21228130161762238, 'learning_rate': 0.00018090169943749476, 'epoch': 0.14}
+{'loss': 2.1557, 'grad_norm': 0.2105887085199356, 'learning_rate': 0.00015877852522924732, 'epoch': 0.21}
+{'loss': 2.1474, 'grad_norm': 0.21612632274627686, 'learning_rate': 0.00013090169943749476, 'epoch': 0.28}
+{'loss': 2.1289, 'grad_norm': 0.20827274024486542, 'learning_rate': 0.0001, 'epoch': 0.35}
+{'loss': 2.1379, 'grad_norm': 0.2037079781293869, 'learning_rate': 6.909830056250527e-05, 'epoch': 0.42}
+{'loss': 2.1339, 'grad_norm': 0.20011748373508453, 'learning_rate': 4.12214747707527e-05, 'epoch': 0.48}
+{'loss': 2.1382, 'grad_norm': 0.2071235030889511, 'learning_rate': 1.9098300562505266e-05, 'epoch': 0.55}
+{'loss': 2.1206, 'grad_norm': 0.22607220709323883, 'learning_rate': 4.8943483704846475e-06, 'epoch': 0.62}
+{'loss': 2.1325, 'grad_norm': 0.21433565020561218, 'learning_rate': 0.0, 'epoch': 0.69}
+{'train_runtime': 455.9367, 'train_samples_per_second': 14.037, 'train_steps_per_second': 0.219, 'train_loss': 2.1554392623901366, 'epoch': 0.69}
+100%|██████████| 129/129 [00:29<00:00,  4.43it/s]
+Traceback (most recent call last):
+  File "/workspace/Personalized_LLM/run_trainer.py", line 5, in <module>
+    finetuner.run()
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 54, in run
+    self._save_model(trainer)
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 81, in _save_model
+    torch_dtype=torch.float16
+                ^^^^^
+NameError: name 'torch' is not defined

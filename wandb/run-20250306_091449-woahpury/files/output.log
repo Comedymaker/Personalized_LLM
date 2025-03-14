@@ -1,0 +1,22 @@
+100%|██████████| 100/100 [07:37<00:00,  4.58s/it]
+{'loss': 2.3035, 'grad_norm': 0.2909524440765381, 'learning_rate': 0.00019510565162951537, 'epoch': 0.07}
+{'loss': 2.1558, 'grad_norm': 0.2130257487297058, 'learning_rate': 0.00018090169943749476, 'epoch': 0.14}
+{'loss': 2.1558, 'grad_norm': 0.2065199911594391, 'learning_rate': 0.00015877852522924732, 'epoch': 0.21}
+{'loss': 2.1476, 'grad_norm': 0.21462006866931915, 'learning_rate': 0.00013090169943749476, 'epoch': 0.28}
+{'loss': 2.1289, 'grad_norm': 0.20507679879665375, 'learning_rate': 0.0001, 'epoch': 0.35}
+{'loss': 2.1379, 'grad_norm': 0.20194271206855774, 'learning_rate': 6.909830056250527e-05, 'epoch': 0.42}
+{'loss': 2.1342, 'grad_norm': 0.19997146725654602, 'learning_rate': 4.12214747707527e-05, 'epoch': 0.48}
+{'loss': 2.1384, 'grad_norm': 0.20566198229789734, 'learning_rate': 1.9098300562505266e-05, 'epoch': 0.55}
+{'loss': 2.1205, 'grad_norm': 0.22297823429107666, 'learning_rate': 4.8943483704846475e-06, 'epoch': 0.62}
+{'loss': 2.1329, 'grad_norm': 0.212136909365654, 'learning_rate': 0.0, 'epoch': 0.69}
+{'train_runtime': 459.726, 'train_samples_per_second': 13.921, 'train_steps_per_second': 0.218, 'train_loss': 2.1555514907836915, 'epoch': 0.69}
+100%|██████████| 129/129 [00:29<00:00,  4.44it/s]
+Traceback (most recent call last):
+  File "/workspace/Personalized_LLM/run_trainer.py", line 5, in <module>
+    finetuner.run()
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 53, in run
+    self._save_model(trainer)
+  File "/workspace/Personalized_LLM/train/tinyModel_trainer.py", line 72, in _save_model
+    base_model = AutoModelForCausalLM.from_pretrained(
+                 ^^^^^^^^^^^^^^^^^^^^
+NameError: name 'AutoModelForCausalLM' is not defined

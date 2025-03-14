@@ -48,6 +48,15 @@ class LargeModelLoader:
         config = load_config()
         os.environ["CUDA_VISIBLE_DEVICES"]=config["base"]["device_id"]
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model = AutoModelForCausalLM.from_pretrained(config["base"]["large_model_id"])
+        bnb_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_compute_dtype="float16",
+            bnb_4bit_use_double_quant=True
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            config["base"]["large_model_id"],
+            quantization_config=bnb_config
+        )
         model.to(device)
         return model

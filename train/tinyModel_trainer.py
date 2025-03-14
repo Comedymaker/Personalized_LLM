@@ -4,6 +4,10 @@ from utils.config_loader import load_config
 from models.model import TinyModelLoader
 from models.tokenizer import Tokenizer
 from dataloader.dataset import PaperDataset
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
+import torch
+import os
+from peft import LoraConfig, AutoPeftModelForCausalLM, PeftModel
 
 
 class FineTuner:
@@ -12,8 +16,9 @@ class FineTuner:
         self.tokenizer = Tokenizer.load_tokenizer()
         self.model = TinyModelLoader.load_model()
         self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
-        self.tokenized_data = self.data.map(PaperDataset.preprocess_function, batched = True)
-        self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model)
+        print(self.data["train"][0])
+        # self.tokenized_data = self.data.map(PaperDataset.preprocess_function, batched = True)
+        # self.data_collator = DataCollatorForSeq2Seq(tokenizer=self.tokenizer, model=self.model)
         
     def _get_training_args(self):
         return TrainingArguments(
@@ -28,7 +33,8 @@ class FineTuner:
             save_strategy="epoch",
             logging_steps=10,
             optim="paged_adamw_32bit",
-            lr_scheduler_type="cosine"
+            lr_scheduler_type="cosine",
+            report_to="wandb"
         )
     
     def _get_output_dir(self):
@@ -39,13 +45,13 @@ class FineTuner:
     def run(self):
         trainer = SFTTrainer(
             model=self.model,
-            train_dataset=self.tokenized_data["train"],
-            eval_dataset=self.tokenized_data["test"],
+            train_dataset=self.data["train"],
+            eval_dataset=self.data["test"],
             peft_config=self._get_lora_config(),
             args=self._get_training_args(),
             tokenizer=self.tokenizer,
-            data_collator=self.data_collator,
-            max_seq_length=512
+            # data_collator=self.data_collator,
+            max_seq_length=512,
         )
         trainer.train()
         trainer.evaluate()
@@ -66,3 +72,26 @@ class FineTuner:
         trainer.model.save_pretrained(trainer.args.output_dir)
         self.tokenizer.save_pretrained(trainer.args.output_dir)
         print(f"Model saved to: {trainer.args.output_dir}")
+
+        base_model = AutoModelForCausalLM.from_pretrained(
+            self.config['base']['tiny_model_id'],
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype="float16"
+            ),
+            device_map="auto",
+            torch_dtype=torch.float16
+        )
+
+        peft_model = PeftModel.from_pretrained(
+            base_model,
+            trainer.args.output_dir,  # 本地适配器路径
+            device_map="auto"
+        )
+
+        merged_model = peft_model.merge_and_unload()
+        merged_model.save_pretrained(trainer.args.output_dir + "_merged")
+        self.tokenizer.save_pretrained(trainer.args.output_dir + "_merged")
+
+        print(f"完整模型已保存到：{trainer.args.output_dir}_merged")
