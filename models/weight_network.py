@@ -13,22 +13,22 @@ class WeightNetwork(nn.Module):
             nn.Linear(hidden_dims[0], hidden_dims[1]),
             nn.ReLU(),
             nn.Linear(hidden_dims[1], 2),  # 输出层：两个权重值
-            nn.Sigmoid()
+            nn.Softmax(dim=-1)  # 使用Softmax激活函数
         )
-
-        # 将所有权重转换为 float16
-        self.layer_stack = self.layer_stack.to(torch.float16)
         
         # 初始化策略
         self._init_weights()
     
     def _init_weights(self):
-        for layer in self.layer_stack:
+        for idx, layer in enumerate(self.layer_stack):
             if isinstance(layer, nn.Linear):
-                nn.init.kaiming_normal_(layer.weight, 
-                    mode='fan_in', nonlinearity='relu')
-                nn.init.constant_(layer.bias, 0.1)
-    
+                nn.init.kaiming_normal_(layer.weight, mode='fan_in', nonlinearity='relu')
+                # 对输出层的偏置进行初始化，接近均衡
+                if layer == self.layer_stack[4]:
+                    layer.bias.data = torch.tensor([0.5, 0.5])
+                else:
+                    nn.init.constant_(layer.bias, 0.1)
+
     def forward(self, llm_logits, slm_logits):
         # 截取top-k logits (k=10)
         topk_llm = llm_logits.topk(self.logit_dim, dim=-1).values
@@ -36,10 +36,14 @@ class WeightNetwork(nn.Module):
 
         # 拼接特征
         combined = torch.cat([topk_llm, topk_slm], dim=-1)
-        
-        # 生成归一化权重
-        # 打印 combined 的数据类型
+
+        # 生成原始权重
         raw_weights = self.layer_stack(combined)
+
+        # 打印 raw_weights 数据
+        print(f"raw_weights: {raw_weights}")
+
+        # 归一化权重
         normalized_weights = raw_weights / raw_weights.sum(dim=-1, keepdim=True)
         
         return normalized_weights  # [weight_llm, weight_slm]

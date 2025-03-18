@@ -3,12 +3,12 @@ import os
 from transformers import pipeline
 from models.tokenizer import Tokenizer
 
-os.environ["CUDA_VISIBLE_DEVICES"]="2"
-pipe = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.0", torch_dtype=torch.bfloat16, device_map="auto")
+# os.environ["CUDA_VISIBLE_DEVICES"]="2"
+# pipe = pipeline("text-generation", model="TinyLlama/TinyLlama-1.1B-Chat-v1.0", torch_dtype=torch.bfloat16, device_map="auto")
 
-tokenizer = Tokenizer.load_tokenizer()
+# tokenizer = Tokenizer.load_tokenizer()
 
-text = "heelo"
+# text = "heelo"
 
 # We use the tokenizer's chat template to format each message - see https://huggingface.co/docs/transformers/main/en/chat_templating
 # messages = [
@@ -26,4 +26,5 @@ text = "heelo"
 # prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
 # print(prompt)
 
-print(tokenizer.pad_token_id)
+import torch
+print(torch.version.cuda)

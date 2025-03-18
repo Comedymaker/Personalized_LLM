@@ -4,7 +4,7 @@ base:
   large_model_id: "meta-llama/Llama-2-7b-chat-hf"
   dataset_path: "data/Lamp5/user402.json"
   model_path: "results/models/20250313_033009_TinyLlama-1.1B-Chat-v1.0_merged"
-  device_id: "2"
+  device_id: "3"
   max_length: 35
   
 # 训练配置
@@ -28,7 +28,7 @@ lora:
 
 combModel_training:
   batch_size: 4
-  lr: 0.00001
-  epochs: 5
+  lr: 0.0001
+  epochs: 20
   output_dir: "results/models/combModel"
   max_length: 512

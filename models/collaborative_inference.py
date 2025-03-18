@@ -26,7 +26,7 @@ class CollaborativeInference:
         return llm_logits, slm_logits
 
     def forward(self, input_ids):
-        # 生成过程
+        # 训练阶段生成过程
         batch_size = input_ids.size(0)
         current_ids = input_ids
         max_length = self.config["base"]["max_length"]
@@ -39,9 +39,10 @@ class CollaborativeInference:
             if not active.any():
                 break
 
-            # 获取活跃样本的 logits
-            active_ids = current_ids[active]
-            llm_logits, slm_logits = self.get_logits(active_ids)
+            llm_logits, slm_logits = self.get_logits(current_ids)
+
+            llm_logits = llm_logits.to(torch.float32)
+            slm_logits = slm_logits.to(torch.float32)
 
             # 计算权重和融合 logits
             weights = self.weight_network(llm_logits, slm_logits)
@@ -52,7 +53,6 @@ class CollaborativeInference:
             # 动态维度扩展（利用广播机制）
             combined_logits = (weights_llm * llm_logits) + (weights_slm * slm_logits)
 
-            # 选择下一个 token
             next_token = torch.argmax(combined_logits[:, -1, :], dim=-1)
 
             # 更新结束状态
@@ -61,16 +61,41 @@ class CollaborativeInference:
             # 拼接新 token 到所有样本
             next_token_all = torch.full((batch_size, 1), self.eos_token_id, 
                                         dtype=torch.long, device=self.device)
-            next_token_all = next_token.unsqueeze(1)
+            next_token_all= next_token.unsqueeze(1)
+
             current_ids = torch.cat([current_ids, next_token_all], dim=1)
 
             # 填充 logits_sequence，确保每一步的大小一致
-            padded_combined_logits = torch.zeros(batch_size, 1, combined_logits.size(-1), dtype=torch.float16, device=self.device)
+            padded_combined_logits = torch.zeros(batch_size, 1, combined_logits.size(-1), dtype=torch.float16 ,device=self.device)
             padded_combined_logits = combined_logits[:, -1, :].unsqueeze(1)
 
             logits_sequence.append(padded_combined_logits)
+
+            # 补全剩余的 logits（如果生成提前结束）
+        if len(logits_sequence) < max_length:
+            pad_logits = torch.zeros(
+                batch_size, 1, combined_logits.size(-1),
+                dtype=torch.float32,
+                device=self.device
+            )
+            for _ in range(max_length - len(logits_sequence)):
+                logits_sequence.append(pad_logits)
+            
         # 使用 torch.stack 来堆叠所有的 logits
-        combined_logits = torch.stack(logits_sequence, dim=1)
+        combined_logits = torch.stack(logits_sequence, dim=1).squeeze(2)
+
+        # 确保 output_ids 的长度为 max_length
+        if current_ids.size(1) < max_length:
+            pad_length = max_length - current_ids.size(1)
+            pad_tokens = torch.full(
+                (batch_size, pad_length),
+                self.eos_token_id,
+                dtype=torch.long,
+                device=self.device
+            )
+            current_ids = torch.cat([current_ids, pad_tokens], dim=1)
+        else:
+            current_ids = current_ids[:, :max_length]
 
         return {
             "output_ids": current_ids,
@@ -93,9 +118,12 @@ class CollaborativeInference:
 
             llm_logits, slm_logits = self.get_logits(current_ids)
 
+            llm_logits = llm_logits.to(torch.float32)
+            slm_logits = slm_logits.to(torch.float32)
+
             # 计算权重和融合 logits
             weights = self.weight_network(llm_logits, slm_logits)
-            print(weights)
+
             weights_llm = weights[:, :, 0].unsqueeze(-1)  # [4,340,1]
             weights_slm = weights[:, :, 1].unsqueeze(-1)  # [4,340,1]
 
@@ -124,22 +152,46 @@ class CollaborativeInference:
 
             logits_sequence.append(padded_combined_logits)
             
+        
+            # 补全剩余的 logits（如果生成提前结束）
+        if len(logits_sequence) < max_length:
+            pad_logits = torch.zeros(
+                batch_size, 1, combined_logits.size(-1),
+                dtype=torch.float32,
+                device=self.device
+            )
+            for _ in range(max_length - len(logits_sequence)):
+                logits_sequence.append(pad_logits)
+
         # 使用 torch.stack 来堆叠所有的 logits
         combined_logits = torch.stack(logits_sequence, dim=1).squeeze(2)
 
-        print(combined_logits)
+        # 确保 output_ids 的长度为 max_length
+        if current_ids.size(1) < max_length:
+            pad_length = max_length - current_ids.size(1)
+            pad_tokens = torch.full(
+                (batch_size, pad_length),
+                self.eos_token_id,
+                dtype=torch.long,
+                device=self.device
+            )
+            current_ids = torch.cat([current_ids, pad_tokens], dim=1)
+        else:
+            current_ids = current_ids[:, :max_length]
 
         return {
             "output_ids": current_ids,
             "combined_logits": combined_logits
         }
 
-    def generate(self, text, max_length=64):
+    def generate(self, text):
         # 文本转token
         inputs = self.tokenizer(text, return_tensors="pt").input_ids.to(self.device)
         
         # 生成输出
-        output_ids = self.forward(inputs, max_length=max_length)
+        outputs = self.forward(inputs)
+
+        output_ids = outputs["output_ids"]
         
         # 转回文本
-        return self.tokenizer.decode(output_ids[0], skip_special_tokens=True)
+        return self.tokenizer.decode(output_ids, skip_special_tokens=True)
