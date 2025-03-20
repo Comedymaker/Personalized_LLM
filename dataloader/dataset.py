@@ -27,7 +27,7 @@ class PaperDataset:
             tokenizer.apply_chat_template([
             {
                 "role": "system",
-                "content": "Generate a concise academic paper title based on the abstract",
+                "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
             },
             {"role": "user", "content": x["abstract"]},
             {"role": "assistant", "content": x["title"]}
@@ -59,10 +59,11 @@ class PaperDataset:
             tokenizer.apply_chat_template([
             {
                 "role": "system",
-                "content": "Generate a concise academic paper title based on the abstract",
+                "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
             },
             {"role": "user", "content": x["abstract"]},
-        ], tokenize=False, add_generation_prompt=True), axis=1)
+            {"role": "assistant", "content": x["title"]}
+        ], tokenize=False, add_generation_prompt=False), axis=1)
 
         dataset = Dataset.from_pandas(df)
         
@@ -82,5 +83,9 @@ class PaperDataset:
             labels = tokenizer(targets, truncation=True, padding="max_length", max_length=512)
 
         model_inputs["labels"] = labels["input_ids"]  # 把目标标签放到model_inputs中
+
+        print(f"input_ids: {model_inputs["input_ids"]}")
+        print(f"labels: {model_inputs["labels"]}")
+
         return model_inputs
 
