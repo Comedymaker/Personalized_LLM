@@ -31,7 +31,7 @@ class PaperDataset:
             },
             {"role": "user", "content": x["abstract"]},
             {"role": "assistant", "content": x["title"]}
-        ], tokenize=False, add_generation_prompt=False), axis=1)
+        ], tokenize=False, add_generation_prompt=False, add_special_tokens=True), axis=1)
 
         dataset = Dataset.from_pandas(df)
 

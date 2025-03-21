@@ -67,19 +67,20 @@ class CustomSFTTrainer(SFTTrainer):
 
 class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):    
     def torch_call(self, examples: List[Union[List[int], Any, Dict[str, Any]]]) -> Dict[str, Any]:
-
+        
         # The torch_call method overrides the same method in the base class and 
         # takes a list of examples as input.  
         batch = super().torch_call(examples)
 
         labels = batch["labels"].clone()
+        # print(f"labels0 before: {labels[0]}")
 
         # The code then encodes a special token, RESPONSE_KEY_NL, 
         # representing the end of the prompt followed by a newline. 
         # It searches for this token in the sequence of tokens (labels) 
         # and finds its index.
         begin_token_ids = self.tokenizer.encode(BEGIN_KEY)
-        response_token_ids = response_token_ids = [29989, 465, 22137, 29989, 29958]
+        response_token_ids = [29989, 465, 22137, 29989, 29958]
 
         for i in range(len(examples)):
             response_token_ids_start_idx = None
@@ -107,6 +108,8 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
 
         batch["labels"] = labels
 
+        # print(f"labels0 after: {labels[0]}")
+
         return batch
 
 class FineTuner:
@@ -114,6 +117,7 @@ class FineTuner:
         self.config = load_config()
         self.tokenizer = Tokenizer.load_tokenizer()
         self.model = TinyModelLoader.load_model()
+        self.model.resize_token_embeddings(len(self.tokenizer))
         self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
         print(self.data["train"][0])
         # self.tokenized_data = self.data.map(PaperDataset.preprocess_function, batched = True)
@@ -128,7 +132,6 @@ class FineTuner:
             num_train_epochs=self.config["tinyModel_training"]["num_epochs"],
             max_steps=self.config["tinyModel_training"]["max_steps"],
             fp16=self.config["tinyModel_training"]["fp16"],
-            save_total_limit=self.config["tinyModel_training"]["save_total_limit"],
             save_strategy="epoch",
             logging_steps=10,
             optim="paged_adamw_32bit",
@@ -142,7 +145,23 @@ class FineTuner:
         return f"{self.config['tinyModel_training']['output_dir']}/{timestamp}_{self.config['base']['tiny_model_id'].split('/')[-1]}"
 
     def run(self):
-        trainer = CustomSFTTrainer(
+        messages = [
+            {
+                "role": "system",
+                "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
+            },
+            {"role": "user", "content": "Address correlation is a technique that links the addresses that reference the same data values. Using a detailed source-code level analysis, a recent study [1] revealed that different addresses containing the same data can often be correlated at run-time to eliminate on-chip data cache misses. In this paper, we study the upper-bound performance of an Address Correlation System (ACS), and discuss specific optimizations for a realistic hardware implementation. An ACS can effectively eliminate most of the L1 data cache misses by supplying the data from a correlated address already found in the cache to thereby improve the performance of the processor. For 10 of the SPEC CPU2000 benchmarks, 57 to 99% of all L1 data cache load misses can be eliminated, which produces an increase of 0 to 243% in the overall performance of a superscalar processor. We also show that an ACS with 1-2 correlations for a value can usually provide comparable performance results to that of the upper bound. Furthermore, a considerable number of correlations can be found within the same set in the L1 data cache, which suggests that a low-cost ACS implementation is possible. "},
+            {"role": "assistant", "content": "Improving Data Cache Performance via Address Correlation: An Upper Bound Study"}
+        ]
+
+        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+
+        print(f"prompt: {prompt}")
+
+        input_ids = self.tokenizer(prompt, return_tensors="pt")
+
+        print(f"input_ids: {input_ids['input_ids']}")
+        trainer = SFTTrainer(
             model=self.model,
             train_dataset=self.data["train"],
             eval_dataset=self.data["test"],
@@ -154,6 +173,7 @@ class FineTuner:
         )
         trainer.train()
         trainer.evaluate()
+
         self._save_model(trainer)
 
     def _get_lora_config(self):
@@ -168,25 +188,18 @@ class FineTuner:
         )
 
     def _save_model(self, trainer):
-        trainer.model.save_pretrained(trainer.args.output_dir)
-        self.tokenizer.save_pretrained(trainer.args.output_dir)
-        print(f"Model saved to: {trainer.args.output_dir}")
-
         base_model = AutoModelForCausalLM.from_pretrained(
             self.config['base']['tiny_model_id'],
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_compute_dtype="float16"
-            ),
+            load_in_8bit=False,
             device_map="auto",
             torch_dtype=torch.float16
         )
-
+        base_model.resize_token_embeddings(len(self.tokenizer))
         peft_model = PeftModel.from_pretrained(
             base_model,
-            trainer.args.output_dir,  # 本地适配器路径
-            device_map="auto"
+            f"{trainer.args.output_dir}/checkpoint-50",  # 本地适配器路径
+            device_map="auto",
+            from_transformers=True
         )
 
         merged_model = peft_model.merge_and_unload()

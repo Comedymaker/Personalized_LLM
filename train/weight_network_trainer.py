@@ -28,6 +28,9 @@ class WeightNetworkTrainer:
 
         # 加载大模型和小模型（tiny_model）
         self.large_model = LargeModelLoader.load_model()
+        
+        self.large_model.resize_token_embeddings(len(self.tokenizer))
+
         # self.large_model = TinyModelLoader.load_finetuned_model()
         self.tiny_model = TinyModelLoader.load_finetuned_model()
         
