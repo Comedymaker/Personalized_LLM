@@ -62,7 +62,7 @@ class WeightNetworkTrainer:
         # 优化学习率设置
         self.optimizer = AdamW(
             self.weight_network.parameters(),
-            lr=1e-5,
+            lr=self.config["combModel_training"]["lr"],
             weight_decay=0.01
         )
         

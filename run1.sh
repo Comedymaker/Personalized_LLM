@@ -1,0 +1,1 @@
+python run_CombModel_trainer.py > results/trainlog1.txt 2>&1

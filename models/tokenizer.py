@@ -5,7 +5,7 @@ class Tokenizer:
     @staticmethod
     def load_tokenizer():
         config = load_config()
-        tokenizer = AutoTokenizer.from_pretrained(config["base"]["tiny_model_id"])
+        tokenizer = AutoTokenizer.from_pretrained(config["base"]["large_model_id"])
         # tokenizer.pad_token = tokenizer.eos_token
         tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         pad_token_id = tokenizer.convert_tokens_to_ids('[PAD]')

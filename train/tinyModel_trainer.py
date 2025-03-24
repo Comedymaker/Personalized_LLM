@@ -80,7 +80,7 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
         # It searches for this token in the sequence of tokens (labels) 
         # and finds its index.
         begin_token_ids = self.tokenizer.encode(BEGIN_KEY)
-        response_token_ids = [29989, 465, 22137, 29989, 29958]
+        response_token_ids = [29914, 25580, 29962]
 
         for i in range(len(examples)):
             response_token_ids_start_idx = None

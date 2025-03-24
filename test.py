@@ -8,8 +8,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 准备微调后模型的路径
-model_id_final = "results/models/20250320_074810_TinyLlama-1.1B-Chat-v1.0_merged"  # 这里使用你本地保存的微调后模型路径
-# model_id_final = "meta-llama/Llama-2-7b-chat-hf"
+# model_id_final = "results/models/20250320_074810_TinyLlama-1.1B-Chat-v1.0_merged"  # 这里使用你本地保存的微调后模型路径
+model_id_final = "meta-llama/Llama-2-7b-chat-hf"
 tokenizer = AutoTokenizer.from_pretrained(model_id_final)
 
 messages = [
@@ -29,4 +29,6 @@ input_ids = tokenizer(prompt, return_tensors="pt")
 
 print(f"input_ids: {input_ids['input_ids']}")
 
-print(tokenizer.decode([29871, 13]))
+token_id = tokenizer("[/INST]")
+
+print(token_id)
