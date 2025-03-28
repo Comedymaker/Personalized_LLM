@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 
 class WeightNetwork(nn.Module):
-    def __init__(self, logit_dim=10, hidden_dims=[512, 16]):
+    def __init__(self, logit_dim=20, hidden_dims=[512, 16]):
         super().__init__()
         self.logit_dim = logit_dim
         

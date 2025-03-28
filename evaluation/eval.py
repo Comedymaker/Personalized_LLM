@@ -1,91 +1,171 @@
 import torch
-import sys
 import os
-from transformers import AutoTokenizer
-# 将项目根目录加入到 sys.path
+import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from utils.config_loader import load_config
-from models.model import TinyModelLoader
+from transformers import AutoTokenizer, pipeline
+from torch.utils.data import DataLoader
+from models.model import TinyModelLoader, LargeModelLoader  # 匹配你的模型加载器路径
 from dataloader.dataset import PaperDataset
+from rouge_score import rouge_scorer
+from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from utils.config_loader import load_config
+# 设置路径和设备
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 默认使用GPU 0
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-class Evaluator:
-    def __init__(self):
-        # 加载配置文件
-        self.config = load_config()
+# 加载配置和分词器
+config = load_config()  # 确保该函数已定义
+tokenizer = AutoTokenizer.from_pretrained(config["base"]["tiny_model_id"])  # 使用模型对应的tokenizer
 
-        # 加载 tokenizer 和模型
-        self.tokenizer = AutoTokenizer.from_pretrained(self.config["base"]["tiny_model_id"])  # 直接使用训练时的 tokenizer
-        self.model = TinyModelLoader.load_finetuned_model()  # 加载微调后的模型
-        self.model.eval()  # 设置模型为评估模式
+def collate_fn(batch):
+    """调整后的数据整理函数（支持单模型测试）"""
+    texts = [item["text"] for item in batch]
+    titles = [item["title"] for item in batch]
+    
+    # 输入文本编码（保持与训练时一致的参数）
+    text_encodings = tokenizer(
+        texts,
+        padding="max_length",
+        truncation=True,
+        max_length=512,
+        return_tensors="pt",
+        add_special_tokens=True,
+        padding_side="left"
+    )
+    
+    # 标签编码（标题）
+    title_encodings = tokenizer(
+        titles,
+        padding="max_length",
+        truncation=True,
+        max_length=512,
+        return_tensors="pt",
+        padding_side="left"
+    )
 
-        # 加载数据
-        self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
+    # 确保每个标题序列包含 <eos> token
+    labels = title_encodings["input_ids"]
+    
+    
+    return {
+        "input_ids": text_encodings["input_ids"].to(device),
+        "attention_mask": text_encodings["attention_mask"].to(device),
+        "labels": labels.to(device)
+    }
 
-    def prepare_input_for_testing(self, abstract_text):
-        """
-        根据训练时的格式处理输入文本
-        """
-        instruction = "[INSTRUCTION] Generate a concise academic paper title based on the abstract."
-        abstract = f"[ABSTRACT] {abstract_text}"
-        input_text = f"{instruction}\n{abstract}\n</s>"  # 和训练时一致，添加结束符
-        return input_text
+def calculate_loss(logits, labels):
+    """定义损失计算函数（假设使用交叉熵）"""
+    ce_loss = torch.nn.CrossEntropyLoss(ignore_index=tokenizer.pad_token_id)
+    # 展开为 (batch*seq_len, vocab_size)
+    logits_flat = logits.view(-1, logits.size(-1))
+    labels_flat = labels.view(-1)
+    return ce_loss(logits_flat, labels_flat)
 
-    def evaluate(self):
-        """
-        评估模型：生成标题并与真实标题进行对比
-        """
-        generated_titles = []
-        true_titles = []
+def calculate_metrics(predictions, references):
+    """合并ROUGE和BLEU计算"""
+    # 计算ROUGE
+    scorer = rouge_scorer.RougeScorer(['rouge1', 'rouge2', 'rougeL'], use_stemmer=True)
+    rouge_scores = {
+        'rouge1': 0.0,
+        'rouge2': 0.0,
+        'rougeL': 0.0
+    }
+    for pred, ref in zip(predictions, references):
+        scores = scorer.score(pred, ref)
+        rouge_scores['rouge1'] += scores['rouge1'].fmeasure
+        rouge_scores['rouge2'] += scores['rouge2'].fmeasure
+        rouge_scores['rougeL'] += scores['rougeL'].fmeasure
+    for k in rouge_scores:
+        rouge_scores[k] /= len(predictions)
+    
+    # 计算BLEU
+    smoothing = SmoothingFunction().method4
+    bleu = sum(sentence_bleu([ref.split()], pred.split(), smoothing_function=smoothing)
+              for pred, ref in zip(predictions, references)) / len(predictions)
+    
+    return rouge_scores, bleu
 
-        # 在测试集上进行推理
-        for data_point in self.data["test"]:
-            abstract_text = data_point["abstract"]
-            true_title = data_point["title"]
-
-            # 准备输入
-            input_text = self.prepare_input_for_testing(abstract_text)
-
-            # 编码输入
-            inputs = self.tokenizer(input_text, return_tensors='pt', padding=True, truncation=True, max_length=512)
-            input_ids = inputs['input_ids'].to(self.model.device)
-
-            # 生成标题
-            with torch.no_grad():
-                output = self.model.generate(
-                    input_ids,
-                    max_length=512,  # 设置生成的最大长度
-                    num_beams=5,  # 使用束搜索
-                    no_repeat_ngram_size=2,  # 防止重复的n-gram
-                    eos_token_id=self.tokenizer.eos_token_id,  # 使用 eos_token_id
-                    early_stopping=True
-                )
-
-            # 解码生成的标题
-            generated_title = self.tokenizer.decode(output[0], skip_special_tokens=True)
-
-            # 保存真实标题和生成的标题
-            generated_titles.append(generated_title)
-            print(generated_title)
-            true_titles.append(true_title)
-
-        # 计算评估指标（例如 BLEU, ROUGE, etc.）
-        self.calculate_metrics(generated_titles, true_titles)
-
-    def calculate_metrics(self, generated_titles, true_titles):
-        """
-        计算生成标题与真实标题的评估指标
-        """
-        from sklearn.metrics import accuracy_score
-        # 你可以使用 BLEU、ROUGE 等评估指标，下面使用准确度作为示例
-        accuracy = accuracy_score(true_titles, generated_titles)
-        print(f"Accuracy: {accuracy:.4f}")
-
-        # 如果需要更高级的评估，例如 BLEU 或 ROUGE，可以使用 `nltk` 或 `rouge_score` 库
-        # 例如：计算 BLEU 或 ROUGE 分数
-        from nltk.translate.bleu_score import corpus_bleu
-        bleu_score = corpus_bleu([[t] for t in true_titles], generated_titles)
-        print(f"BLEU Score: {bleu_score:.4f}")
-
+# 主测试流程
 if __name__ == "__main__":
-    evaluator = Evaluator()
-    evaluator.evaluate()
+    # 指定模型路径（从配置文件读取）
+    model_path = config["base"]["model_path"]  # 确保配置文件中有该字段
+    
+    # 加载模型（使用你的加载器）
+    model = TinyModelLoader.load_finetuned_model()  # 自动加载到正确设备
+    # model = LargeModelLoader.load_model()  # 自动加载到正确设备
+    model.eval()  # 设置为评估模式
+    
+    # 加载数据集（假设PaperDataset支持test_split方法）
+    dataset = PaperDataset.format_data_combModel(config["base"]["dataset_path"])
+    test_loader = DataLoader(
+        dataset["test"],
+        batch_size=1,          # 单条测试更稳定
+        shuffle=False,
+        collate_fn=collate_fn
+    )
+
+    all_predictions = []
+    all_references = []
+    total_loss = 0.0
+
+    with torch.no_grad():
+        for batch in test_loader:
+            input_ids = batch["input_ids"]
+            attention_mask = batch["attention_mask"]
+            labels = batch["labels"]
+
+            # 前向传播（注意：需要显式传递labels）
+            outputs = model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                labels=labels
+            )
+            
+            # 获取logits和预测文本
+            logits = outputs.logits  # 直接访问模型输出属性
+            # 生成文本需要单独调用generate方法
+            generated_ids = model.generate(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                max_new_tokens=config["base"]["max_length"]
+            )
+
+            # 解码预测和标签
+            predictions = tokenizer.batch_decode(
+                generated_ids, 
+                skip_special_tokens=True, 
+                clean_up_tokenization_spaces=True
+            )
+            references = tokenizer.batch_decode(
+                labels, 
+                skip_special_tokens=True
+            )
+            
+            # 处理预测内容，确保只包含[/INST]符号之后的部分
+            predictions = [prediction.split("[/INST]")[1].strip() if "[/INST]" in prediction else prediction for prediction in predictions]
+
+
+            # 保存结果
+            all_predictions.extend(predictions)
+            all_references.extend(references)
+            
+            # 计算损失
+            loss = calculate_loss(logits, labels)
+            total_loss += loss.item()
+            
+            # 打印示例
+            print(f"\nSample {len(all_predictions)}:")
+            print(f"Prediction: {predictions[0]}")
+            print(f"Reference:  {references[0]}")
+
+        # 计算平均指标
+        avg_loss = total_loss / len(test_loader)
+        rouge, bleu = calculate_metrics(all_predictions, all_references)
+
+        # 输出结果
+        print(f"\nAverage Loss: {avg_loss:.4f}")
+        print(f"ROUGE-1: {rouge['rouge1']:.4f}")
+        print(f"ROUGE-2: {rouge['rouge2']:.4f}")
+        print(f"ROUGE-L: {rouge['rougeL']:.4f}")
+        print(f"BLEU: {bleu:.4f}")

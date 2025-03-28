@@ -3,9 +3,11 @@ base:
   tiny_model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   large_model_id: "meta-llama/Llama-2-7b-chat-hf"
   dataset_path: "data/Lamp5/user402.json"
-  model_path: "results/models/20250324_024541_TinyLlama-1.1B-Chat-v1.0_merged"
-  device_id: "0"
+  model_path: "results/models/20250327_034748_TinyLlama-1.1B-Chat-v1.0_merged"
+  device_id: "1"
   max_length: 35
+  top_k: 50
+  temperature: 0.1
   
 # 训练配置
 tinyModel_training:
@@ -14,7 +16,7 @@ tinyModel_training:
   gradient_accumulation_steps: 4
   learning_rate: 0.0002
   num_epochs: 1
-  max_steps: 50
+  max_steps: 20
   save_total_limit: 1  # 最多只保留最后一个 checkpoint
 
   fp16: true
@@ -28,7 +30,8 @@ lora:
 
 combModel_training:
   batch_size: 4
-  lr: 0.0001
+  lr: 0.0005
   epochs: 20
   output_dir: "results/models/combModel"
   max_length: 512
+  num_epochs: 10

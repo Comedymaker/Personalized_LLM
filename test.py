@@ -1,34 +1,16 @@
+# import torch
+# import os
+# from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# print(full_path)
+
+# tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-13b-chat-hf")
+
+# input_ids = [1, 1, 518, 25580, 29962, 3532, 14816, 29903, 6778, 13, 3492, 526, 385, 21567, 20255, 29889, 3575, 3414, 338, 304, 5706, 263, 3022, 895, 322, 16232, 5650, 3611, 3579, 6194, 1068, 29892, 2729, 373, 278, 1404, 29915, 29879, 9846, 29889, 450, 3611, 881, 29901, 29871, 29896, 29897, 10604, 3579, 6194, 278, 3611, 1068, 313, 1217, 7309, 800, 29892, 15998, 29892, 470, 4805, 1426, 416, 29871, 29906, 29897, 10446, 278, 7136, 24233, 362, 29936, 29871, 29941, 29897, 3160, 1820, 16905, 4958, 29936, 29871, 29946, 29897, 367, 1090, 29871, 29906, 29900, 3838, 29889, 13, 29966, 829, 14816, 29903, 6778, 13, 13, 1576, 2114, 393, 11994, 297, 11104, 4049, 7738, 21159, 3321, 2582, 756, 17385, 630, 5925, 414, 304, 26987, 5164, 13698, 29892, 1316, 408, 995, 18988, 322, 995, 24270, 29892, 304, 16035, 277, 445, 6030, 29889, 7865, 18988, 4857, 1960, 278, 3625, 2799, 4080, 29899, 10108, 1459, 6553, 1608, 313, 6227, 29925, 29897, 297, 480, 6774, 1052, 279, 1889, 943, 491, 14372, 14278, 11994, 304, 367, 8283, 1580, 352, 6703, 1156, 8500, 292, 278, 1819, 310, 1009, 1881, 1751, 4167, 29889, 7865, 24270, 29892, 373, 278, 916, 1361, 29892, 14335, 304, 27399, 28005, 16287, 491, 15446, 278, 9251, 7371, 2582, 310, 11994, 322, 14993, 3262, 278, 8225, 310, 28005, 11994, 29889, 4721, 2366, 995, 24270, 7208, 12903, 671, 263, 2323, 15278, 470, 263, 18180, 8429, 15278, 2318, 29892, 1316, 408, 263, 6996, 2908, 29892, 263, 9637, 29892, 470, 263, 740, 29892, 408, 278, 24270, 5190, 29889, 4525, 18180, 29899, 15628, 15278, 6471, 526, 28520, 2893, 28677, 491, 278, 12837, 472, 10073, 1728, 6516, 18872, 29889, 2398, 29892, 278, 4180, 7037, 310, 263, 995, 24270, 13336, 7111, 373, 967, 24270, 15326, 931, 29892, 278, 1353, 310, 24270, 28602, 1907, 29892, 322, 278, 5253, 310, 664, 7160, 491, 14993, 3262, 1269, 24270, 5190, 29889, 4001, 7200, 15278, 6471, 12234, 505, 28145, 24270, 28602, 1907, 1135, 7968, 6471, 29892, 541, 896, 3867, 7621, 14169, 363, 1269, 24270, 29899, 29881, 2650, 428, 1889, 29892, 372, 338, 1407, 4100, 304, 1284, 278, 17346, 1298, 393, 8128, 278, 10150, 12463, 4180, 11581, 29889, 512, 445, 5650, 29892, 591, 16193, 263, 716, 13336, 2000, 1014, 1271, 24270, 29889, 3323, 1271, 29879, 526, 2825, 491, 269, 506, 292, 6996, 10930, 2845, 11200, 470, 411, 6516, 27323, 29889, 450, 7343, 13501, 671, 278, 1353, 310, 11994, 29892, 3694, 310, 10970, 322, 14391, 29892, 470, 278, 10122, 310, 3787, 11994, 304, 8161, 278, 1014, 1271, 24371, 29889, 450, 6516, 29899, 465, 12652, 2948, 269, 29399, 6996, 10930, 773, 848, 29899, 1731, 2050, 800, 304, 17346, 278, 24270, 3803, 1070, 537, 322, 278, 1353, 310, 24270, 28602, 1907, 29889, 450, 2582, 1510, 393, 1014, 1271, 29879, 29892, 607, 508, 7738, 701, 304, 29871, 29941, 29953, 10151, 6210, 786, 565, 337, 3880, 6284, 29892, 526, 2253, 21669, 363, 24270, 10340, 1135, 6996, 10930, 29889, 8512, 1014, 1271, 24270, 411, 6516, 18872, 756, 263, 23228, 322, 13747, 7037, 304, 11157, 278, 4180, 310, 480, 6774, 1052, 279, 1889, 943, 29892, 445, 11380, 338, 451, 2337, 278, 1900, 2189, 261, 29889, 3323, 1271, 29879, 22078, 304, 1023, 18942]
+
+# text = tokenizer.decode(input_ids, skip_special_tokens=True)
+
+# print(text)
+
 import torch
-import os
-from transformers import AutoTokenizer, pipeline, AutoModelForCausalLM
-from time import perf_counter
-
-# 选择设备
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# 准备微调后模型的路径
-# model_id_final = "results/models/20250320_074810_TinyLlama-1.1B-Chat-v1.0_merged"  # 这里使用你本地保存的微调后模型路径
-model_id_final = "meta-llama/Llama-2-7b-chat-hf"
-tokenizer = AutoTokenizer.from_pretrained(model_id_final)
-
-messages = [
-    {
-        "role": "system",
-        "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
-    },
-    {"role": "user", "content": "Address correlation is a technique that links the addresses that reference the same data values. Using a detailed source-code level analysis, a recent study [1] revealed that different addresses containing the same data can often be correlated at run-time to eliminate on-chip data cache misses. In this paper, we study the upper-bound performance of an Address Correlation System (ACS), and discuss specific optimizations for a realistic hardware implementation. An ACS can effectively eliminate most of the L1 data cache misses by supplying the data from a correlated address already found in the cache to thereby improve the performance of the processor. For 10 of the SPEC CPU2000 benchmarks, 57 to 99% of all L1 data cache load misses can be eliminated, which produces an increase of 0 to 243% in the overall performance of a superscalar processor. We also show that an ACS with 1-2 correlations for a value can usually provide comparable performance results to that of the upper bound. Furthermore, a considerable number of correlations can be found within the same set in the L1 data cache, which suggests that a low-cost ACS implementation is possible. "},
-    {"role": "assistant", "content": "Improving Data Cache Performance via Address Correlation: An Upper Bound Study"}
-]
-
-prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False, add_special_tokens=True)
-
-print(f"prompt: {prompt}")
-
-input_ids = tokenizer(prompt, return_tensors="pt")
-
-print(f"input_ids: {input_ids['input_ids']}")
-
-token_id = tokenizer("[/INST]")
-
-print(token_id)
+print(torch.__version__)

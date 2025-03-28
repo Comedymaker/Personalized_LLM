@@ -14,6 +14,7 @@ from models.collaborative_inference import CollaborativeInference
 from torch.optim import AdamW
 from rouge_score import rouge_scorer
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+from datetime import datetime
 
 
 
@@ -25,6 +26,12 @@ class WeightNetworkTrainer:
         
         os.environ["CUDA_VISIBLE_DEVICES"]=self.config["base"]["device_id"]
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.path = f"{self.config['combModel_training']['output_dir']}/{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        
+        os.makedirs(self.path, exist_ok=True)
+
+        self.num_epochs = self.config["combModel_training"]["num_epochs"]
 
         # 加载大模型和小模型（tiny_model）
         self.large_model = LargeModelLoader.load_model()
@@ -38,7 +45,7 @@ class WeightNetworkTrainer:
         self.weight_network = WeightNetwork()
         
         # 训练数据
-        self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
+        self.data = PaperDataset.format_data_combModel(self.config["base"]["dataset_path"])
 
         # 初始化协同推理实例
         self.collaborative_inference = CollaborativeInference(self.large_model, self.tiny_model, self.weight_network, self.tokenizer, self.device)
@@ -56,7 +63,7 @@ class WeightNetworkTrainer:
             self.data["test"],
             batch_size=self.config["combModel_training"]["batch_size"],
             shuffle=True,
-            collate_fn=self.collate_fn  # 新增数据整理函数
+            collate_fn=self.collate_fn  # 修改为测试数据整理函数
         )
         
         # 优化学习率设置
@@ -83,7 +90,9 @@ class WeightNetworkTrainer:
             padding="longest",
             truncation=True,
             max_length=512,
-            return_tensors="pt"
+            return_tensors="pt",
+            add_special_tokens=False,
+            padding_side="left"
         )
         title_encodings = self.tokenizer(
             titles,
@@ -130,9 +139,10 @@ class WeightNetworkTrainer:
             for batch in self.test_loader:
                 input_ids = batch["input_ids"]
                 labels = batch["labels"]
+                attention_mask = batch["attention_mask"]
 
                 # 前向传播
-                outputs = self.collaborative_inference.forward(input_ids)
+                outputs = self.collaborative_inference.forward(input_ids, attention_mask)
                 weighted_logits = outputs["combined_logits"]
                 # 计算损失
                 loss = self.calculate_loss(weighted_logits, labels)
@@ -141,12 +151,12 @@ class WeightNetworkTrainer:
                 num_batches += 1
 
                 # 获取预测和参考文本
-                predictions = self.tokenizer.batch_decode(torch.argmax(weighted_logits, dim=-1), skip_special_tokens=True)
+                predictions = self.tokenizer.batch_decode(outputs["generated_tokens"], skip_special_tokens=True)
                 references = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
 
                 # 打印当前批次的预测和标签（可选：仅打印前 2 个样本）
                 print("\n--- 当前批次示例 ---")
-                for pred, ref in zip(predictions[:2], references[:2]):
+                for pred, ref in zip(predictions[:4], references[:4]):
                     print(f"预测文本: {pred}")
                     print(f"标签文本: {ref}")
                     print("-------------------")
@@ -214,11 +224,12 @@ class WeightNetworkTrainer:
         # 获取输入和标签
         input_ids = batch["input_ids"]
         labels = batch["labels"]
+        attention_mask = batch["attention_mask"]
         
         self.optimizer.zero_grad()
 
         # 前向传播（逐token生成）
-        outputs = self.collaborative_inference.train_forward(input_ids, labels)
+        outputs = self.collaborative_inference.forward(input_ids, attention_mask, labels)
         
         # 提取预测logits
         # 注意：需要根据您的实际实现获取中间logits
@@ -239,15 +250,13 @@ class WeightNetworkTrainer:
         self.scheduler.step()
         self.optimizer.zero_grad()
         
-        
-
         return loss.item()
 
     def train_weight_network(self, num_epochs=5):
         """改进的训练循环"""
         self.weight_network.train()
         self.freeze_models()
-        
+        num_epochs = self.num_epochs
         for epoch in range(num_epochs):
             total_loss = 0
             for batch_idx, batch in enumerate(self.train_loader):
@@ -261,6 +270,7 @@ class WeightNetworkTrainer:
             
             # 保存检查点
             self.save_checkpoint(epoch)
+            print(f"Epoch {epoch} 模型已存储到 {self.path}/checkpoint_epoch{epoch}.pt")
 
     def save_checkpoint(self, epoch):
         """保存中间结果"""
@@ -270,5 +280,5 @@ class WeightNetworkTrainer:
             "optimizer": self.optimizer.state_dict(),
             "scheduler": self.scheduler.state_dict()
         }
-        path = f"{self.config['combModel_training']['output_dir']}/checkpoint_epoch{epoch}.pt"
-        torch.save(checkpoint, path)
+        full_path = os.path.join(self.path, f"checkpoint_epoch{epoch}.pt")
+        torch.save(checkpoint, full_path)

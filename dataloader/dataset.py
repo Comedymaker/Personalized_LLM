@@ -27,7 +27,7 @@ class PaperDataset:
             tokenizer.apply_chat_template([
             {
                 "role": "system",
-                "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
+                "content": "You are an academic assistant. Your task is to generate a concise and accurate paper title **only**, based on the user's abstract. The title should: 1) Output **only the title** (no explanations, formatting, or extra text); 2) capture the core innovation; 3) include key technical terms; 4) be under 20 words.",
             },
             {"role": "user", "content": x["abstract"]},
             {"role": "assistant", "content": x["title"]}
@@ -46,27 +46,17 @@ class PaperDataset:
 
         tokenizer = Tokenizer.load_tokenizer()
 
-        # df["text"] = df.apply(lambda x: 
-        # "[INSTRUCTION] Generate a concise academic paper title based on the abstract.\n"
-        # f"[ABSTRACT] {x['abstract']}\n"
-        # f"[TITLE] {x['title']}</s>",  # 添加结束符
-        # axis=1)
-         # 格式化为对话格式，前面加上提示语
-        # df["text"] = df[["abstract", "title"]].apply(lambda x: 
-        #     "<|im_start|>user\n" + x["abstract"] + " <|im_end|>\n<|im_start|>assistant\n" + x["title"] + "<|im_end|>\n", axis=1)
-
-        df["text"] = df[["abstract", "title"]].apply(lambda x: 
+        df["text"] = df["abstract"].apply(lambda x:
             tokenizer.apply_chat_template([
             {
                 "role": "system",
                 "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
             },
-            {"role": "user", "content": x["abstract"]},
-            {"role": "assistant", "content": x["title"]}
-        ], tokenize=False, add_generation_prompt=False), axis=1)
+            {"role": "user", "content": x}
+        ], tokenize=False, add_generation_prompt=False, add_special_tokens=True))
 
         dataset = Dataset.from_pandas(df)
-        
+
         return dataset.train_test_split(seed=42, test_size=0.1)
 
     def preprocess_function(examples):

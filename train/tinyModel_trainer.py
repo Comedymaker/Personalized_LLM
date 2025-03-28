@@ -3,7 +3,7 @@ import numpy as np
 from trl import SFTTrainer
 from transformers import TrainingArguments, DataCollatorForSeq2Seq, DataCollatorForLanguageModeling
 from utils.config_loader import load_config
-from models.model import TinyModelLoader
+from models.model import TinyModelLoader, LargeModelLoader
 from models.tokenizer import Tokenizer
 from dataloader.dataset import PaperDataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
@@ -169,7 +169,7 @@ class FineTuner:
             args=self._get_training_args(),
             tokenizer=self.tokenizer,
             data_collator=self.data_collator,
-            max_seq_length=512,
+            # max_seq_length=512,
         )
         trainer.train()
         trainer.evaluate()
@@ -197,7 +197,7 @@ class FineTuner:
         base_model.resize_token_embeddings(len(self.tokenizer))
         peft_model = PeftModel.from_pretrained(
             base_model,
-            f"{trainer.args.output_dir}/checkpoint-50",  # 本地适配器路径
+            f"{trainer.args.output_dir}/checkpoint-{self.config['tinyModel_training']['max_steps']}",  # 本地适配器路径
             device_map="auto",
             from_transformers=True
         )
