@@ -3,3 +3,4 @@ results/
 wandb/
 GrabGPU/
 venv/
+.ipynb_checkpoints/
