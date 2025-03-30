@@ -3,8 +3,8 @@ base:
   tiny_model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
   large_model_id: "meta-llama/Llama-2-7b-chat-hf"
   dataset_path: "data/Lamp5/user402.json"
-  model_path: "results/models/20250327_034748_TinyLlama-1.1B-Chat-v1.0_merged"
-  device_id: "1"
+  model_path: "results/models/20250330_133940_TinyLlama-1.1B-Chat-v1.0_merged"
+  device_id: "0"
   max_length: 35
   top_k: 50
   temperature: 0.1

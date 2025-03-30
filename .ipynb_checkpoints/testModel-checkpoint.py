@@ -4,13 +4,13 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from models.tokenizer import Tokenizer
 
 # 选择设备
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 # 加载模型和分词器
-# model_name = "results/models/20250330_133940_TinyLlama-1.1B-Chat-v1.0_merged"
-model_name = "meta-llama/Llama-2-13b-chat-hf"
+# model_name = "results/models/20250327_032710_TinyLlama-1.1B-Chat-v1.0_merged"
+model_name = "meta-llama/Llama-2-7b-chat-hf"
 tokenizer = Tokenizer.load_tokenizer()
 model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 model.config.pad_token_id = tokenizer.pad_token_id
