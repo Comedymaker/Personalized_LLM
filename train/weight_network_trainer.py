@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from utils.config_loader import load_config
 from models.model import TinyModelLoader, LargeModelLoader
 from models.tokenizer import Tokenizer
-from dataloader.dataset import PaperDataset
+from dataloader.dataset import PaperDataset, NewsDataset, RatingDataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
 import torch
 import os
@@ -34,18 +34,25 @@ class WeightNetworkTrainer:
         self.num_epochs = self.config["combModel_training"]["num_epochs"]
 
         # 加载大模型和小模型（tiny_model）
-        self.large_model = LargeModelLoader.load_model()
+        self.large_model = LargeModelLoader.load_finetuned_model()
         
-        self.large_model.resize_token_embeddings(len(self.tokenizer))
+        # self.large_model.resize_token_embeddings(len(self.tokenizer))
 
         # self.large_model = TinyModelLoader.load_finetuned_model()
         self.tiny_model = TinyModelLoader.load_finetuned_model()
         
+        if(self.config["base"]["tiny_model_id"] == "Qwen/Qwen1.5-0.5B-Chat"):
+            ctx_dim = 1024
+        else:
+            ctx_dim = 2048
+
         # 加载权重网络
-        self.weight_network = WeightNetwork()
-        
+        self.weight_network = WeightNetwork(vocab_size=len(self.tokenizer), hidden_dims=[512, 512], ctx_dim=ctx_dim)
+        # self.weight_network = WeightNetwork(vocab_size=len(self.tokenizer), hidden_dims=[512, 512])
         # 训练数据
-        self.data = PaperDataset.format_data_combModel(self.config["base"]["dataset_path"])
+        self.data = PaperDataset.format_data_combModel()
+        # self.data = NewsDataset.format_data_combModel()
+        # self.data = RatingDataset.format_data_combModel()
 
         # 初始化协同推理实例
         self.collaborative_inference = CollaborativeInference(self.large_model, self.tiny_model, self.weight_network, self.tokenizer, self.device)
@@ -77,7 +84,7 @@ class WeightNetworkTrainer:
         self.scheduler = get_linear_schedule_with_warmup(
             self.optimizer,
             num_warmup_steps=100,
-            num_training_steps=len(self.train_loader)*self.config["combModel_training"]["epochs"]
+            num_training_steps=len(self.train_loader)*self.config["combModel_training"]["num_epochs"]
         )
 
 
@@ -119,11 +126,22 @@ class WeightNetworkTrainer:
         }
 
     def calculate_loss(self, logits, labels):
-        shift_logits = logits[..., :-1, :].contiguous()
-        shift_labels = labels[..., 1:].contiguous()
+        # print(f"logits shape: {logits.shape}")
+        # print(f"labels shape: {labels.shape}")
+        # shift_logits = logits[..., :-1, :].contiguous()
+        # shift_labels = labels[..., 1:].contiguous()
+        # return F.cross_entropy(
+        #     shift_logits.view(-1, shift_logits.size(-1)),
+        #     shift_labels.view(-1),
+        #     ignore_index=self.tokenizer.pad_token_id
+        # )
+        flat_logits = logits.view(-1, logits.size(-1))  # (batch_size * output_length, vocab_size)
+        flat_labels = labels.view(-1)                   # (batch_size * output_length)
+        
+        # 计算交叉熵损失，忽略 PAD token
         return F.cross_entropy(
-            shift_logits.view(-1, shift_logits.size(-1)),
-            shift_labels.view(-1),
+            flat_logits,
+            flat_labels,
             ignore_index=self.tokenizer.pad_token_id
         )
 
@@ -142,7 +160,7 @@ class WeightNetworkTrainer:
                 attention_mask = batch["attention_mask"]
 
                 # 前向传播
-                outputs = self.collaborative_inference.forward(input_ids, attention_mask)
+                outputs = self.collaborative_inference.forward(input_ids, attention_mask, use_past=False)
                 weighted_logits = outputs["combined_logits"]
                 # 计算损失
                 loss = self.calculate_loss(weighted_logits, labels)
@@ -229,14 +247,29 @@ class WeightNetworkTrainer:
         self.optimizer.zero_grad()
 
         # 前向传播（逐token生成）
-        outputs = self.collaborative_inference.forward(input_ids, attention_mask, labels)
+        outputs = self.collaborative_inference.forward(input_ids, attention_mask, labels, use_past=True)
         
         # 提取预测logits
         # 注意：需要根据您的实际实现获取中间logits
         # 假设我们能够获取每个位置的加权logits
         weighted_logits = outputs["combined_logits"]  # 需要修改CollaborativeInference来返回这个值
 
-        decoded_labels = [self.tokenizer.decode(label_ids, skip_special_tokens=True) for label_ids in labels]
+        print("Logits shape:", weighted_logits.shape)
+
+        for pos in [0, 1]:  # 第一个和第二个 token
+            logits = weighted_logits[0, pos]  # 取第一个样本的第 pos 个位置
+            probs = F.softmax(logits, dim=-1)
+            topk = torch.topk(probs, k=10)
+            
+            print(f"\n🧠 Token Position {pos}:")
+            for i, (token, prob) in enumerate(zip(
+                self.tokenizer.convert_ids_to_tokens(topk.indices.tolist()),
+                topk.values.tolist()
+            )):
+                print(f"Top {i+1}: Token = {token}, Probability = {prob:.4f}")
+
+        decoded_labels = [self.tokenizer.decode(label_ids, skip_special_tokens=False) for label_ids in labels]
+        print(decoded_labels)
 
         # 计算损失
         loss = self.calculate_loss(weighted_logits, labels)
@@ -252,7 +285,7 @@ class WeightNetworkTrainer:
         
         return loss.item()
 
-    def train_weight_network(self, num_epochs=5):
+    def train_weight_network(self):
         """改进的训练循环"""
         self.weight_network.train()
         self.freeze_models()
@@ -271,6 +304,12 @@ class WeightNetworkTrainer:
             # 保存检查点
             self.save_checkpoint(epoch)
             print(f"Epoch {epoch} 模型已存储到 {self.path}/checkpoint_epoch{epoch}.pt")
+        
+
+        replay_path = f"../autodl-tmp/replay_data/{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        os.makedirs(replay_path, exist_ok=True)
+        self.collaborative_inference.replay_buffer.save(f"{replay_path}/replay.pt")
+        print(f"重放数据已保存到 ../autodl-tmp/replay_data/{datetime.now().strftime('%Y%m%d%H%M%S')}/replay.pt")
 
     def save_checkpoint(self, epoch):
         """保存中间结果"""

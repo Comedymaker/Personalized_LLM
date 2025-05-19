@@ -1,19 +1,27 @@
 import torch
 import os
 import sys
+import numpy as np
+import random
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
 from torch.utils.data import DataLoader
 from models.model import TinyModelLoader, LargeModelLoader
 from utils.config_loader import load_config
 from models.tokenizer import Tokenizer
-from dataloader.dataset import PaperDataset
+from dataloader.dataset import PaperDataset, NewsDataset
 from models.weight_network import WeightNetwork
 from models.collaborative_inference import CollaborativeInference
 from rouge_score import rouge_scorer
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
-tokenizer = Tokenizer.load_tokenizer()
+
+def set_random_seed(seed_num):
+    random.seed(seed_num)
+    np.random.seed(seed_num)
+    torch.manual_seed(seed_num)
+    torch.cuda.manual_seed(seed_num)
+    torch.cuda.manual_seed_all(seed_num)
 
 def collate_fn(batch):
     """自定义数据整理函数"""
@@ -85,14 +93,19 @@ def calculate_rouge(predictions, references):
 
     return rouge_scores
 
-path = "results/models/combModel/checkpoint_epoch4.pt"
-checkpoint = torch.load(path)
+tokenizer = Tokenizer.load_tokenizer()
+
+set_random_seed(1057)
+
+
 
 config = load_config()
 
 tiny_model = TinyModelLoader.load_finetuned_model()
-large_model = LargeModelLoader.load_model()
-large_model.resize_token_embeddings(len(tokenizer))
+large_model = LargeModelLoader.load_finetuned_model()
+tiny_model.eval()
+large_model.eval()
+# large_model.resize_token_embeddings(len(tokenizer))
 
 
 
@@ -100,66 +113,75 @@ os.environ["CUDA_VISIBLE_DEVICES"]=config["base"]["device_id"]
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 读取数据集
-data = PaperDataset.format_data_combModel(config["base"]["dataset_path"])
+data = PaperDataset.format_data_combModel()
+# data = NewsDataset.format_data_combModel()
 
-weight_network = WeightNetwork()
+if(config["base"]["tiny_model_id"] == "Qwen/Qwen1.5-0.5B-Chat"):
+    ctx_dim = 1024
+else:
+    ctx_dim = 2048
 
-collaborative_inference = CollaborativeInference(large_model, tiny_model, weight_network, tokenizer, device)
 
-weight_network.load_state_dict(checkpoint["model_state"])
 
 test_loader = DataLoader(
     data["test"],
-    batch_size=config["combModel_training"]["batch_size"],
+    batch_size=1,
     shuffle=True,
     collate_fn=collate_fn  # 修改为测试数据整理函数
 )
 
-weight_network.eval()  # 设置模型为评估模式
-total_loss = 0.0
-num_batches = 0
-all_predictions = []
-all_references = []
 
-with torch.no_grad():  # 关闭梯度计算
-    for batch in test_loader:
-        input_ids = batch["input_ids"]
-        labels = batch["labels"]
-        attention_mask = batch["attention_mask"]
+for epoch_id in range(0, 10):
+    path = f"../autodl-tmp/results/models/combModel/20250515110223/checkpoint_epoch{epoch_id}.pt"
+    checkpoint = torch.load(path)
+    weight_network = WeightNetwork(vocab_size=len(tokenizer), hidden_dims=[512, 512], ctx_dim=ctx_dim)
 
-        # 前向传播
-        outputs = collaborative_inference.forward(input_ids, attention_mask)
-        weighted_logits = outputs["combined_logits"]
-        # 计算损失
-        loss = calculate_loss(weighted_logits, labels)
+    collaborative_inference = CollaborativeInference(large_model, tiny_model, weight_network, tokenizer, device)
 
-        total_loss += loss.item()
-        num_batches += 1
+    weight_network.load_state_dict(checkpoint["model_state"])
+    
+    weight_network.eval()  # 设置模型为评估模式
 
-        answer_tokens = generated_tokens[0][:len(labels[0])]
+    print(f"Epoch {epoch_id}:")
+    total_loss = 0.0
+    num_batches = 0
+    all_predictions = []
+    all_references = []
 
-        # 获取预测和参考文本
-        predictions = tokenizer.batch_decode(answer_tokens, skip_special_tokens=True)
-        references = tokenizer.batch_decode(labels, skip_special_tokens=True)
+    with torch.no_grad():  # 关闭梯度计算
+        for batch in test_loader:
+            input_ids = batch["input_ids"]
+            labels = batch["labels"]
+            attention_mask = batch["attention_mask"]
 
-        # 打印当前批次的预测和标签（可选：仅打印前 2 个样本）
-        print("\n--- 当前批次示例 ---")
-        for pred, ref in zip(predictions[:4], references[:4]):
-            print(f"预测文本: {pred}")
-            print(f"标签文本: {ref}")
-            print("-------------------")
-                
-        all_predictions.extend(predictions)
-        all_references.extend(references)
+            # 前向传播
+            outputs = collaborative_inference.forward(input_ids, attention_mask, use_past=False)
+            weighted_logits = outputs["combined_logits"]
+            # 计算损失
+            # loss = calculate_loss(weighted_logits, labels)
 
-    avg_loss = total_loss / num_batches
-    print(f"Test Loss: {avg_loss}")
+            # total_loss += loss.item()
+            num_batches += 1
 
-    # 计算 ROUGE 和 BLEU 评分
-    rouge_scores = calculate_rouge(all_predictions, all_references)
-    bleu_scores = calculate_bleu(all_predictions, all_references)
+            # 获取预测和参考文本
+            predictions = tokenizer.batch_decode(outputs["generated_tokens"], skip_special_tokens=True, clean_up_tokenization_spaces=True)
+            references = tokenizer.batch_decode(labels, skip_special_tokens=True)
+                    
+            all_predictions.extend(predictions)
+            all_references.extend(references)
 
-    print(f"ROUGE-1: {rouge_scores['rouge1']}")
-    print(f"ROUGE-2: {rouge_scores['rouge2']}")
-    print(f"ROUGE-L: {rouge_scores['rougeL']}")
-    print(f"BLEU: {bleu_scores}")
+            print(f"\nSample {len(all_predictions)}:")
+            print(f"Prediction: {predictions[0]}")
+            print(f"Reference:  {references[0]}")
+
+        # avg_loss = total_loss / num_batches
+        # print(f"Test Loss: {avg_loss}")
+
+        # 计算 ROUGE 和 BLEU 评分
+        rouge_scores = calculate_rouge(all_predictions, all_references)
+        bleu_scores = calculate_bleu(all_predictions, all_references)
+
+        print(f"ROUGE-1: {rouge_scores['rouge1']}")
+        print(f"ROUGE-2: {rouge_scores['rouge2']}")
+        print(f"ROUGE-L: {rouge_scores['rougeL']}")
+        print(f"BLEU: {bleu_scores}")

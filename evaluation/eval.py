@@ -1,22 +1,35 @@
 import torch
 import os
 import sys
+import numpy as np
+import random
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from transformers import AutoTokenizer, pipeline
 from torch.utils.data import DataLoader
 from models.model import TinyModelLoader, LargeModelLoader  # 匹配你的模型加载器路径
-from dataloader.dataset import PaperDataset
+from models.tokenizer import Tokenizer
+from dataloader.dataset import PaperDataset, NewsDataset, RatingDataset
 from rouge_score import rouge_scorer
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 from utils.config_loader import load_config
+
+def set_random_seed(seed_num):
+    random.seed(seed_num)
+    np.random.seed(seed_num)
+    torch.manual_seed(seed_num)
+    torch.cuda.manual_seed(seed_num)
+    torch.cuda.manual_seed_all(seed_num)
+
+set_random_seed(1057)
+
 # 设置路径和设备
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # 默认使用GPU 0
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # 默认使用GPU 0
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 加载配置和分词器
 config = load_config()  # 确保该函数已定义
-tokenizer = AutoTokenizer.from_pretrained(config["base"]["tiny_model_id"])  # 使用模型对应的tokenizer
+tokenizer = Tokenizer.load_tokenizer()
 
 def collate_fn(batch):
     """调整后的数据整理函数（支持单模型测试）"""
@@ -89,15 +102,16 @@ def calculate_metrics(predictions, references):
 # 主测试流程
 if __name__ == "__main__":
     # 指定模型路径（从配置文件读取）
-    model_path = config["base"]["model_path"]  # 确保配置文件中有该字段
-    
     # 加载模型（使用你的加载器）
-    model = TinyModelLoader.load_finetuned_model()  # 自动加载到正确设备
-    # model = LargeModelLoader.load_model()  # 自动加载到正确设备
+    # model = TinyModelLoader.load_finetuned_model()  # 自动加载到正确设备
+    model = LargeModelLoader.load_finetuned_model()  # 自动加载到正确设备
+    # model.resize_token_embeddings(len(tokenizer))
     model.eval()  # 设置为评估模式
     
     # 加载数据集（假设PaperDataset支持test_split方法）
-    dataset = PaperDataset.format_data_combModel(config["base"]["dataset_path"])
+    dataset = PaperDataset.format_data_combModel()  
+    # dataset = NewsDataset.format_data_combModel()
+    # dataset = RatingDataset.format_data_combModel()
     test_loader = DataLoader(
         dataset["test"],
         batch_size=1,          # 单条测试更稳定
@@ -119,7 +133,7 @@ if __name__ == "__main__":
             outputs = model(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                labels=labels
+                # labels=labels
             )
             
             # 获取logits和预测文本
@@ -128,7 +142,11 @@ if __name__ == "__main__":
             generated_ids = model.generate(
                 input_ids=input_ids,
                 attention_mask=attention_mask,
-                max_new_tokens=config["base"]["max_length"]
+                max_new_tokens=config["base"]["max_length"],
+                do_sample=True,          # 启用采样（非贪心解码）
+                temperature=0.1,         # 控制输出多样性（0.5-1.0常见）
+                top_k=50,               # 核采样（top-p sampling）阈值
+                eos_token_id=tokenizer.eos_token_id  # 确保正确结束符
             )
 
             # 解码预测和标签
@@ -143,7 +161,10 @@ if __name__ == "__main__":
             )
             
             # 处理预测内容，确保只包含[/INST]符号之后的部分
-            predictions = [prediction.split("[/INST]")[1].strip() if "[/INST]" in prediction else prediction for prediction in predictions]
+            if config["base"]["tiny_model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0":
+                predictions = [prediction.split("[/INST]")[1].strip() if "[/INST]" in prediction else prediction for prediction in predictions]
+            else:
+                predictions = [prediction.split("assistant\n")[1].strip() if "assistant\n" in prediction else prediction for prediction in predictions]
 
 
             # 保存结果

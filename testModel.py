@@ -2,131 +2,56 @@ import torch
 import os
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from models.tokenizer import Tokenizer
+from models.model import TinyModelLoader, LargeModelLoader
+
 
 # 选择设备
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+print("here")
 
 # 加载模型和分词器
-# model_name = "results/models/20250330_133940_TinyLlama-1.1B-Chat-v1.0_merged"
-model_name = "meta-llama/Llama-2-13b-chat-hf"
 tokenizer = Tokenizer.load_tokenizer()
-model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+token_id = 18
+decoded_text = tokenizer.decode([token_id], skip_special_tokens=False)
+print(decoded_text)
+
+model = TinyModelLoader.load_finetuned_model()
+# model = LargeModelLoader.load_model()
 model.config.pad_token_id = tokenizer.pad_token_id
 model.eval()
 
+print(tokenizer.pad_token_id)
 
 # 输入 prompt
 messages = [
     {
         "role": "system",
-        "content": "You are an academic assistant. Generate **ONLY THE TITLE** of a paper based on the abstract below. The title should: 1) Output **only the title** (no explanations, formatting, or extra text); 2) capture the core innovation; 3) include key technical terms; 4) be under 20 words.",
+        "content": "You are a helpful assistant that only outputs a rating from 1 to 5 for the given user review. Do not explain with any word. Only respond with a single number.",
     },
-    {"role": "user", "content": "The fact that instructions in programs often produce repetitive results has motivated researchers to explore various techniques, such as value prediction and value reuse, to exploit this behavior. Value prediction improves the available Instruction-Level Parallelism (ILP) in superscalar processors by allowing dependent instructions to be executed speculatively after predicting the values of their input operands. Value reuse, on the other hand, tries to eliminate redundant computation by storing the previously produced results of instructions and skipping the execution of redundant instructions. Previous value reuse mechanisms use a single instruction or a naturally formed instruction group, such as a basic block, a trace, or a function, as the reuse unit. These naturally-formed instruction groups are readily identifiable by the hardware at runtime without compiler assistance. However, the performance potential of a value reuse mechanism depends on its reuse detection time, the number of reuse opportunities, and the amount of work saved by skipping each reuse unit. Since larger instruction groups typically have fewer reuse opportunities than smaller groups, but they provide greater benefit for each reuse-detection process, it is very important to find the balance point that provides the largest overall performance gain. In this paper, we propose a new mechanism called subblock reuse. Subblocks are created by slicing basic blocks either dynamically or with compiler guidance. The dynamic approaches use the number of instructions, numbers of inputs and outputs, or the presence of store instructions to determine the subblock boundaries. The compiler-assisted approach slices basic blocks using data-flow considerations to balance the reuse granularity and the number of reuse opportunities. The results show that subblocks, which can produce up to 36 percent speedup if reused properly, are better candidates for reuse units than basic blocks. Although subblock reuse with compiler assistance has a substantial and consistent potential to improve the performance of superscalar processors, this scheme is not always the best performer. Subblocks restricted to two consecutive instructions demonstrate surprisingly good performance potential as well."},
+    {"role": "user", "content": "Got this tie set for our valentine's day dinner. It looked great, fit well and the packaging didn't leave any creases the way that some do. The handkerchief was creased heavily however and took a dry cleaning run to come out."},
 ]
 
 prompt = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
 
+print(prompt)
 
 input_ids = tokenizer(prompt, return_tensors="pt",add_special_tokens=False).input_ids
 
 # 初始化生成序列
 generated_tokens = input_ids.clone().to(device)
 
-#debug开始
-# temperature = 0.1
-# top_k = 50
+allowed_token_ids = []
+for i in range(1, 6):
+    ids = tokenizer(str(i), add_special_tokens=False).input_ids
+    allowed_token_ids.append(ids[-1])  # 取最后一个 token，通常是实际数字
+allowed_token_ids = torch.tensor(allowed_token_ids, device=device)
 
-# # current_ids = input_ids.clone().to(device)
-
-# current_ids = torch.tensor([[32000, 32000,
-#          32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000,
-#          32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000,
-#          32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000,
-#          32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000, 32000,
-#          32000, 32000, 32000,    1,   518, 25580, 29962,  3532, 14816, 29903,  6778,    13,  3492,
-#            526,   385, 21567, 20255,  1058,  2337,  5706,   263,  3022,   895,
-#            322, 16232,  5650,  3611,  2729,   373,   278,  9846,  4944,   491,
-#            278,  1404, 29892,  1728,   738,  7309,   800,   470, 15998, 29889,
-#            450,  3611,   881, 29901, 29871, 29896, 29897, 10446,   278,  7136,
-#          24233,   362, 29936, 29871, 29906, 29897,  3160,  1820, 16905,  4958,
-#          29936, 29871, 29941, 29897,   367,  1090, 29871, 29906, 29900,  3838,
-#          29889,    13, 29966,   829, 14816, 29903,  6778,    13,    13,  2887,
-#            278,  1353,   310,  1301,   391,   943,   373,   263,  2323, 29830,
-#          18172,   304,  6548, 29892,   372,   338,  4100,   304,  1348,  8724,
-#            278, 13807, 13501,   310,  6516, 13883,   363, 25871,  8450, 24210,
-#            322, 25734, 15278,  2228, 10340,   304, 11157,  4180, 29889,   910,
-#           2323,  7097,   287,  8225,  1904, 13071,  1438, 13501,   304, 16035,
-#          11407,   871,   278, 13774,  2319,  5253,   310, 15278, 29899,  5563,
-#           8943,  1608,  3625,   297,  2280, 11104, 29889,  5806,  3990,  1218,
-#            385,  4152,  6674,   307,   985,   272, 11480,   263,  2323, 29830,
-#            338, 28326,  1821, 29892,   445, 11258,   338,  9078,   304, 16035,
-#          11407,   871, 13774,  1302,  7989, 29899,  3874,  1312,  8943,  1608,
-#          29889,  1334, 16193,   263, 21984,  1773,   389,   949,   287, 11258,
-#          29892,  2000,   278,  2428,  7097,   287, 11258, 29892,   408,   385,
-#           8671, 29889,  1094,   263,  7498, 19515,   310,   263,  9377, 29899,
-#          15118,   480,  6774,  1052,   279, 21433,   322,   263,  6674,   307,
-#            985,   272, 29899,   265, 29899, 29874, 29899,   305,   666, 29892,
-#            445,   716, 21984,  1773,   389, 19715, 11258,   508,   454, 19698,
-#            278,  1900,   310,  5923,   322,  5434,  8943, 12837,   322, 14835,
-#           5722, 11763, 29889,  2648, 29299,  6516, 29899, 11851,   287,  3244,
-#          29899,  5563,  1580,  2785,   363,  2761,   322,   848,  8839,  2063,
-#            411,  1065, 29899,  2230,  8454,   310,   848,  8839,  2063, 29892,
-#            278,  2428,  7097,   287, 11258,   508, 16035,   277,   278,  2999,
-#           3803,  1070,  1907,   310,  8943,  1608,  3625,   297,  2498, 29899,
-#          15503,  4220,  2280, 11104,   304, 10032,   278,  8225,   931,   310,
-#            263,  2323,  1824, 29889,   518, 29914, 25580, 29962]]).to(device)
-
-# print(f"current ids: {current_ids}")
-# print(f"model pad token: {model.config.pad_token_id}")
-# attention_mask = torch.tensor([[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-#          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-#          0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-#          1, 1, 1, 1, 1, 1 ]]).to(device)
-
-# assert current_ids.shape == attention_mask.shape, "Shape mismatch between input_ids and attention_mask"
-
-
-# with torch.no_grad():
-#     small_out = model(input_ids=current_ids, attention_mask=attention_mask)
-#     combined_logits = small_out.logits
-
-# next_logits = combined_logits
-
-# next_logits /= temperature
-# if top_k > 0:
-#     top_logits, top_indices = torch.topk(next_logits[:, -1, :], top_k)
-#     next_logits = torch.full_like(next_logits[:, -1, :], -float("Inf"))
-#     next_logits.scatter_(1, top_indices, top_logits)
-
-# probs = torch.nn.functional.softmax(next_logits, dim=-1)
-# next_token = torch.multinomial(probs, num_samples=1)
-
-# current_ids = torch.cat([current_ids, next_token], dim=1)
-
-# current_ids = current_ids.squeeze(0)
-
-# current_labels = tokenizer.decode(current_ids.tolist())
-
-# print(f"current text: {current_labels}")
-
-#debug结束
+print("Allowed token ids:", allowed_token_ids)
+print("Decoded:", [tokenizer.decode([i]) for i in allowed_token_ids])
 
 # 生成参数
-max_length = 50
+max_length = 35
 temperature = 0.1
 top_k = 50
 eos_token_id = tokenizer.eos_token_id
@@ -144,6 +69,11 @@ with torch.no_grad():
             next_token_logits = torch.full_like(next_token_logits, -float("Inf"))
             next_token_logits.scatter_(1, top_indices, top_logits)
 
+
+        # logits_strict = torch.full_like(next_token_logits, float('-inf'))
+        # logits_strict[:, allowed_token_ids] = next_token_logits[:, allowed_token_ids]
+        # next_token_logits = logits_strict
+
         probs = torch.nn.functional.softmax(next_token_logits, dim=-1)
         next_token = torch.multinomial(probs, num_samples=1)
 
@@ -154,11 +84,7 @@ with torch.no_grad():
         generated_tokens = torch.cat([generated_tokens, next_token], dim=-1)
 
 # 解码结果
-generated_text = tokenizer.decode(
-    generated_tokens[0],
-    skip_special_tokens=True,
-    clean_up_tokenization_spaces=True
-)
+generated_text = tokenizer.decode(generated_tokens[0][input_ids.shape[-1]:], skip_special_tokens=False).strip()
 
 print("Generated text:")
 print(generated_text)

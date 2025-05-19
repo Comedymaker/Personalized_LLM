@@ -1,9 +1,30 @@
 # 基础配置
 base:
-  tiny_model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-  large_model_id: "meta-llama/Llama-2-7b-chat-hf"
-  dataset_path: "data/Lamp5/user402.json"
-  model_path: "results/models/20250330_133940_TinyLlama-1.1B-Chat-v1.0_merged"
+  # tiny_model_id: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+  # large_model_id: "meta-llama/Llama-2-13b-chat-hf"
+  tiny_model_id: "Qwen/Qwen1.5-0.5B-Chat"
+  large_model_id: "Qwen/Qwen1.5-7B-Chat"
+  lamp5_path: "../autodl-tmp/data/Lamp5/user411.json"
+  lamp4_path: "../autodl-tmp/data/Lamp4/user303.json"
+  lamp3_path: "../autodl-tmp/data/Lamp3/user201.json"
+  ##Lamp5
+  # model_path: "results/models/20250330_133940_TinyLlama-1.1B-Chat-v1.0_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250402_161549_Llama-2-13b-chat-hf_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250410_103451_Llama-2-7b-chat-hf_merged"
+  model_path: "../autodl-tmp/results/models/20250514_100737_Qwen1.5-0.5B-Chat_merged"
+  large_model_path: "../autodl-tmp/results/models/20250514_095823_Qwen1.5-7B-Chat_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250514_104456_Qwen1.5-14B-Chat_merged"
+  
+  ##Lamp4
+  # model_path: "../autodl-tmp/results/models/20250503_143011_TinyLlama-1.1B-Chat-v1.0_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250429_165429_Llama-2-7b-chat-hf_merged"
+  
+  ##Lamp3
+  # model_path: "../autodl-tmp/results/models/20250504_141321_TinyLlama-1.1B-Chat-v1.0_merged"
+  # model_path: "../autodl-tmp/results/models/20250509_152204_Qwen1.5-0.5B-Chat_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250509_154443_Qwen1.5-7B-Chat_merged"
+  # large_model_path: "../autodl-tmp/results/models/20250510_105259_Qwen1.5-14B-Chat_merged"
+
   device_id: "0"
   max_length: 35
   top_k: 50
@@ -11,12 +32,13 @@ base:
   
 # 训练配置
 tinyModel_training:
-  output_dir: "results/models"  # 自动添加时间戳
+  train_type: "large"
+  output_dir: "../autodl-tmp/results/models"  # 自动添加时间戳
   batch_size: 4
   gradient_accumulation_steps: 4
   learning_rate: 0.0002
   num_epochs: 1
-  max_steps: 20
+  max_steps: 5
   save_total_limit: 1  # 最多只保留最后一个 checkpoint
 
   fp16: true
@@ -30,8 +52,8 @@ lora:
 
 combModel_training:
   batch_size: 4
-  lr: 0.0005
-  epochs: 20
-  output_dir: "results/models/combModel"
+  # lr: 0.0002
+  lr: 0.0002
+  output_dir: "../autodl-tmp/results/models/combModel"
   max_length: 512
   num_epochs: 10

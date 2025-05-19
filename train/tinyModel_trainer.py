@@ -5,7 +5,7 @@ from transformers import TrainingArguments, DataCollatorForSeq2Seq, DataCollator
 from utils.config_loader import load_config
 from models.model import TinyModelLoader, LargeModelLoader
 from models.tokenizer import Tokenizer
-from dataloader.dataset import PaperDataset
+from dataloader.dataset import PaperDataset, NewsDataset, RatingDataset
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig, pipeline
 import torch
 import os
@@ -80,7 +80,11 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
         # It searches for this token in the sequence of tokens (labels) 
         # and finds its index.
         begin_token_ids = self.tokenizer.encode(BEGIN_KEY)
-        response_token_ids = [29914, 25580, 29962]
+        config = load_config()
+        if(config["base"]["tiny_model_id"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"):
+            response_token_ids = [29914, 25580, 29962]
+        else:
+            response_token_ids = [151644, 77091, 198]
 
         for i in range(len(examples)):
             response_token_ids_start_idx = None
@@ -116,9 +120,14 @@ class FineTuner:
     def __init__(self): 
         self.config = load_config()
         self.tokenizer = Tokenizer.load_tokenizer()
-        self.model = TinyModelLoader.load_model()
+        if(self.config["tinyModel_training"]["train_type"] == "tiny"):
+            self.model = TinyModelLoader.load_model()
+        else:
+            self.model = LargeModelLoader.load_model()
         self.model.resize_token_embeddings(len(self.tokenizer))
-        self.data = PaperDataset.format_data(self.config["base"]["dataset_path"])
+        self.data = PaperDataset.format_data()
+        # self.data = NewsDataset.format_data()
+        # self.data = RatingDataset.format_data()
         print(self.data["train"][0])
         # self.tokenized_data = self.data.map(PaperDataset.preprocess_function, batched = True)
         self.data_collator = DataCollatorForCompletionLM(tokenizer=self.tokenizer, mlm=False, return_tensors="pt")
@@ -132,7 +141,8 @@ class FineTuner:
             num_train_epochs=self.config["tinyModel_training"]["num_epochs"],
             max_steps=self.config["tinyModel_training"]["max_steps"],
             fp16=self.config["tinyModel_training"]["fp16"],
-            save_strategy="epoch",
+            save_strategy="steps",
+            save_total_limit=1,
             logging_steps=10,
             optim="paged_adamw_32bit",
             lr_scheduler_type="cosine",
@@ -142,25 +152,28 @@ class FineTuner:
     def _get_output_dir(self):
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{self.config['tinyModel_training']['output_dir']}/{timestamp}_{self.config['base']['tiny_model_id'].split('/')[-1]}"
+        if(self.config["tinyModel_training"]["train_type"] == "tiny"):
+            return f"{self.config['tinyModel_training']['output_dir']}/{timestamp}_{self.config['base']['tiny_model_id'].split('/')[-1]}"
+        else:
+            return f"{self.config['tinyModel_training']['output_dir']}/{timestamp}_{self.config['base']['large_model_id'].split('/')[-1]}"
 
     def run(self):
-        messages = [
-            {
-                "role": "system",
-                "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
-            },
-            {"role": "user", "content": "Address correlation is a technique that links the addresses that reference the same data values. Using a detailed source-code level analysis, a recent study [1] revealed that different addresses containing the same data can often be correlated at run-time to eliminate on-chip data cache misses. In this paper, we study the upper-bound performance of an Address Correlation System (ACS), and discuss specific optimizations for a realistic hardware implementation. An ACS can effectively eliminate most of the L1 data cache misses by supplying the data from a correlated address already found in the cache to thereby improve the performance of the processor. For 10 of the SPEC CPU2000 benchmarks, 57 to 99% of all L1 data cache load misses can be eliminated, which produces an increase of 0 to 243% in the overall performance of a superscalar processor. We also show that an ACS with 1-2 correlations for a value can usually provide comparable performance results to that of the upper bound. Furthermore, a considerable number of correlations can be found within the same set in the L1 data cache, which suggests that a low-cost ACS implementation is possible. "},
-            {"role": "assistant", "content": "Improving Data Cache Performance via Address Correlation: An Upper Bound Study"}
-        ]
+        # messages = [
+        #     {
+        #         "role": "system",
+        #         "content": "You are an academic assistant who always generate a concise and accurate paper title based on the abstract provided by the user, without any explanations or formatting. The title should: 1) capture the core innovation; 2) include key technical terms; 3) be under 20 words.",
+        #     },
+        #     {"role": "user", "content": "Address correlation is a technique that links the addresses that reference the same data values. Using a detailed source-code level analysis, a recent study [1] revealed that different addresses containing the same data can often be correlated at run-time to eliminate on-chip data cache misses. In this paper, we study the upper-bound performance of an Address Correlation System (ACS), and discuss specific optimizations for a realistic hardware implementation. An ACS can effectively eliminate most of the L1 data cache misses by supplying the data from a correlated address already found in the cache to thereby improve the performance of the processor. For 10 of the SPEC CPU2000 benchmarks, 57 to 99% of all L1 data cache load misses can be eliminated, which produces an increase of 0 to 243% in the overall performance of a superscalar processor. We also show that an ACS with 1-2 correlations for a value can usually provide comparable performance results to that of the upper bound. Furthermore, a considerable number of correlations can be found within the same set in the L1 data cache, which suggests that a low-cost ACS implementation is possible. "},
+        #     {"role": "assistant", "content": "Improving Data Cache Performance via Address Correlation: An Upper Bound Study"}
+        # ]
 
-        prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
+        # prompt = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=False)
 
-        print(f"prompt: {prompt}")
+        # print(f"prompt: {prompt}")
 
-        input_ids = self.tokenizer(prompt, return_tensors="pt")
+        # input_ids = self.tokenizer(prompt, return_tensors="pt")
 
-        print(f"input_ids: {input_ids['input_ids']}")
+        # print(f"input_ids: {input_ids['input_ids']}")
         trainer = SFTTrainer(
             model=self.model,
             train_dataset=self.data["train"],
@@ -188,12 +201,20 @@ class FineTuner:
         )
 
     def _save_model(self, trainer):
-        base_model = AutoModelForCausalLM.from_pretrained(
-            self.config['base']['tiny_model_id'],
-            load_in_8bit=False,
-            device_map="auto",
-            torch_dtype=torch.float16
-        )
+        if(self.config["tinyModel_training"]["train_type"] == "tiny"):
+            base_model = AutoModelForCausalLM.from_pretrained(
+                self.config['base']['tiny_model_id'],
+                load_in_8bit=False,
+                device_map="cuda",
+                torch_dtype=torch.float16
+            )
+        else:
+            base_model = AutoModelForCausalLM.from_pretrained(
+                self.config['base']['large_model_id'],
+                load_in_8bit=False,
+                device_map="cuda",
+                torch_dtype=torch.float16
+            )
         base_model.resize_token_embeddings(len(self.tokenizer))
         peft_model = PeftModel.from_pretrained(
             base_model,
